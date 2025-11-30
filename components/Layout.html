@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css">
+    <style>
+        .layout-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .main-content {
+            flex: 1;
+            padding: 20px;
+        }
+        .content-wrapper {
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <!-- Layout Component -->
+    <div class="layout-container">
+        <!-- Header Section -->
+        <div id="header-container"></div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="content-wrapper" id="content-area">
+                <!-- Content will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize layout on load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadHeader();
+            initializeLayout();
+        });
+
+        // Load header component
+        async function loadHeader() {
+            try {
+                const response = await fetch('/components/Header.html');
+                const headerHtml = await response.text();
+                document.getElementById('header-container').innerHTML = headerHtml;
+            } catch (error) {
+                console.error('Error loading header:', error);
+                // Fallback header
+                document.getElementById('header-container').innerHTML = `
+                    <div class="ui secondary menu">
+                        <div class="item" style="font-size: 24px;">BlockVotes</div>
+                        <div class="right menu">
+                            <div class="item">Guest</div>
+                        </div>
+                    </div>
+                    <hr>
+                `;
+            }
+        }
+
+        // Initialize layout utilities
+        function initializeLayout() {
+            window.Layout = {
+                setContent,
+                setTitle,
+                showLoading,
+                hideLoading,
+                showMessage
+            };
+        }
+
+        // Set page content
+        function setContent(htmlContent) {
+            document.getElementById('content-area').innerHTML = htmlContent;
+        }
+
+        // Set page title
+        function setTitle(title) {
+            document.title = title;
+        }
+
+        // Show loading indicator
+        function showLoading(message = 'Loading...') {
+            setContent(`
+                <div class="ui active dimmer">
+                    <div class="ui text loader">${message}</div>
+                </div>
+            `);
+        }
+
+        // Hide loading indicator
+        function hideLoading() {
+            const dimmer = document.querySelector('.ui.dimmer');
+            if (dimmer) {
+                dimmer.remove();
+            }
+        }
+
+        // Show message
+        function showMessage(type, header, content, autoHide = true) {
+            const messageHtml = `
+                <div class="ui ${type} message">
+                    <i class="close icon"></i>
+                    <div class="header">${header}</div>
+                    <p>${content}</p>
+                </div>
+            `;
+            
+            // Add message at the top of content
+            document.getElementById('content-area').innerHTML = messageHtml + document.getElementById('content-area').innerHTML;
+            
+            // Add close functionality
+            const closeButton = document.querySelector('.message .close.icon');
+            if (closeButton) {
+                closeButton.addEventListener('click', function() {
+                    this.closest('.message').remove();
+                });
+            }
+            
+            if (autoHide) {
+                setTimeout(() => {
+                    const message = document.querySelector('.ui.message');
+                    if (message) message.remove();
+                }, 5000);
+            }
+        }
+
+        // Show success message
+        function showSuccess(message, autoHide = true) {
+            showMessage('success', 'Success', message, autoHide);
+        }
+
+        // Show error message
+        function showError(message, autoHide = true) {
+            showMessage('error', 'Error', message, autoHide);
+        }
+
+        // Show info message
+        function showInfo(message, autoHide = true) {
+            showMessage('info', 'Info', message, autoHide);
+        }
+
+        // Make message functions available
+        window.Layout.showSuccess = showSuccess;
+        window.Layout.showError = showError;
+        window.Layout.showInfo = showInfo;
+    </script>
+
+    <!-- jQuery for Semantic UI components -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.js"></script>
+</body>
+</html>

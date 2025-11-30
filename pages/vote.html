@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Vote — Election</title>
+  <link rel="shortcut icon" href="./static/logo3.png" />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+  <style>
+    :root { --sidebar-w: 240px; }
+
+    body {
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: #0f172a;
+      color: #111827;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-w);
+      position: fixed;
+      inset: 0 auto 0 0;
+      background: radial-gradient(circle at top, #0f172a 0, #020617 45%, #020617 100%);
+      border-right: 1px solid rgba(148,163,184,0.3);
+      padding: 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 40;
+    }
+
+    .nav-btn {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:10px 12px;
+      border-radius:999px;
+      color:#e5e7eb;
+      cursor:pointer;
+      text-align:left;
+      font-size:14px;
+      border: 1px solid transparent;
+      background: transparent;
+    }
+
+    .nav-btn:hover {
+      border-color: rgba(148,163,184,0.6);
+      background: rgba(15,23,42,0.85);
+    }
+
+    /* Main content */
+    .main {
+      margin-left: var(--sidebar-w);
+      min-height: 100vh;
+      padding: 28px;
+      background: radial-gradient(circle at top left, #e5f4ff 0, #f9fafb 40%, #f3f4f6 100%);
+    }
+
+    .shell {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    /* Stats layout */
+    .stats {
+      display:flex;
+      gap:16px;
+      align-items:stretch;
+      flex-wrap:wrap;
+    }
+
+    .stat-card {
+      background:#ffffff;
+      padding:14px 16px;
+      border-radius:14px;
+      box-shadow:0 10px 25px rgba(15,23,42,0.08);
+      min-width: 200px;
+      flex: 1 1 200px;
+      border: 1px solid #e5e7eb;
+    }
+
+    /* Cast Vote button style */
+    .cast-btn {
+      background: linear-gradient(135deg,#22c55e,#16a34a);
+      color:white;
+      padding:10px 16px;
+      border-radius:999px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:14px;
+      box-shadow: 0 10px 20px rgba(22,163,74,0.35);
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      border:none;
+    }
+
+    .cast-btn:hover {
+      filter: brightness(1.05);
+      transform: translateY(-1px);
+    }
+
+    .cast-btn:disabled {
+      opacity:0.6;
+      cursor:not-allowed;
+      transform:none;
+      box-shadow:none;
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,0.55);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:60;
+    }
+
+    .modal {
+      background:#ffffff;
+      border-radius:16px;
+      max-width:640px;
+      width:94%;
+      box-shadow:0 24px 60px rgba(15,23,42,0.45);
+      padding:20px 18px;
+      max-height:80vh;
+      overflow:auto;
+      border: 1px solid #e5e7eb;
+    }
+
+    .candidate-row {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      padding:10px 11px;
+      border-radius:10px;
+      border:1px solid #e5e7eb;
+      margin-bottom:10px;
+      background:#f9fafb;
+      cursor:pointer;
+    }
+
+    .candidate-row:hover {
+      border-color:#4f46e5;
+      background:#eef2ff;
+    }
+
+    .candidate-thumb {
+      width:56px;
+      height:56px;
+      object-fit:cover;
+      border-radius:999px;
+      background:#e5e7eb;
+      flex-shrink:0;
+    }
+
+    @media (max-width: 900px) {
+      :root { --sidebar-w: 0px; }
+      .sidebar { display:none; }
+      .main { margin-left: 0; padding: 16px; }
+      .shell { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar: only Sign out -->
+  <aside class="sidebar" role="navigation" aria-label="Main navigation">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+      <img src="./static/logo3.png" alt="logo" style="width:40px;height:40px;object-fit:contain">
+      <div>
+        <div style="font-weight:700;color:#e5e7eb">BlockVotes</div>
+        <div style="font-size:12px;color:#9ca3af">Voter portal</div>
+      </div>
+    </div>
+
+    <div style="flex:1"></div>
+
+    <button id="logoutBtn" class="nav-btn" style="color:#fecaca;border-color:rgba(248,113,113,0.4)" aria-label="Sign out">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" width="18" height="18" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M17 16l4-4m0 0l-4-4m4 4H7"></path>
+        <path d="M7 4v16"></path>
+      </svg>
+      Sign out
+    </button>
+  </aside>
+
+  <!-- Main -->
+  <main class="main" role="main">
+    <div class="shell">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;padding:3px 8px;border-radius:999px;background:#dcfce7;color:#15803d;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;">
+              Secure election
+            </span>
+            <span style="font-size:11px;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#4f46e5;font-weight:500;">
+              <span id="electionStatus">—</span>
+            </span>
+          </div>
+          <h1 id="election-name" style="font-size:22px;margin:8px 0 0;color:#0f172a;font-weight:700;">
+            Loading election...
+          </h1>
+          <p id="election-desc" style="margin:4px 0 0;color:#6b7280;font-size:14px;"></p>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:stretch;">
+          <div style="font-size:12px;color:#6b7280;text-align:right;">
+            <div id="votersCount" style="font-weight:700;font-size:18px">—</div>
+            <div>Registered voters</div>
+          </div>
+          <div style="font-size:12px;color:#6b7280;text-align:right;">
+            <div id="votesCount" style="font-weight:700;font-size:18px">—</div>
+            <div>Total votes</div>
+          </div>
+          <div style="font-size:12px;color:#6b7280;text-align:right;">
+            <div id="candidatesCount" style="font-weight:700;font-size:18px">—</div>
+            <div>Candidates</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:14px"></div>
+
+      <div class="stats" role="region" aria-label="Election statistics">
+        <div class="stat-card" aria-hidden="false">
+          <div style="font-size:12px;color:#6b7280">Your registered email</div>
+          <div id="voterEmailDisplay" style="font-weight:700;margin-top:6px;color:#111827">—</div>
+        </div>
+
+        <div class="stat-card" style="flex: 2 1 260px;">
+      <div style="font-size:12px;color:#6b7280">Election address</div>
+        <div
+          id="addressDisplay"
+          style="
+            font-weight:700;
+            margin-top:6px;
+            color:#111827;
+            font-size:13px;
+            word-break:break-all;
+            white-space:normal;
+          "
+        >—</div>
+      </div>
+
+
+        <div class="stat-card">
+          <div style="font-size:12px;color:#6b7280">Status</div>
+          <div style="font-weight:700;margin-top:6px;color:#111827">
+            <span id="electionStatusInline">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:22px"></div>
+
+      <section style="margin-top:22px;">
+        <div style="background:#ffffff;padding:20px 18px;border-radius:16px;box-shadow:0 12px 30px rgba(15,23,42,0.08);display:flex;flex-direction:column;gap:12px;border:1px solid #e5e7eb;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div>
+              <h3 style="margin:0;font-size:18px;font-weight:700;color:#111827">Cast your vote</h3>
+              <p style="margin:2px 0 0;color:#6b7280;font-size:14px;">
+                Review all candidates, choose one option, and submit securely. You can vote only once.
+              </p>
+            </div>
+            <button id="castVoteBtn" class="cast-btn">
+              <span>Cast vote now</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12l5-5 5 5"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Modal (hidden by default) -->
+  <div id="voteModal" style="display:none;" aria-hidden="true">
+    <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <h2 id="modalTitle" style="margin:0;font-weight:700;font-size:18px;">Cast your vote</h2>
+          <button id="closeModal" aria-label="Close" style="border:none;background:transparent;font-size:18px;cursor:pointer;">✕</button>
+        </div>
+
+        <div id="modalBody">
+          <p id="modalLoading" style="color:#6b7280;margin:0 0 12px 0">Loading candidates…</p>
+          <form id="voteForm">
+            <div id="candidatesContainer" style="margin-bottom:14px"></div>
+
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px;">
+              <button type="button" id="cancelVote" class="nav-btn" style="background:#f9fafb;color:#374151;border-color:#e5e7eb;border-radius:999px;padding:8px 12px;">
+                Cancel
+              </button>
+              <button type="submit" id="submitVote" class="cast-btn">
+                Submit vote
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* Utilities */
+    function escapeHtml(s) {
+      return String(s || '')
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#039;');
+    }
+
+    async function safeJson(resp) {
+      try { return await resp.json(); } catch (e) { return null; }
+    }
+
+    function getElectionAddress() {
+      const fromCookie = Cookies.get('address');
+      if (fromCookie) return fromCookie;
+      const p = new URLSearchParams(window.location.search);
+      return p.get('address') || '';
+    }
+
+    function getVoterEmail() {
+      return Cookies.get('voter_email') || localStorage.getItem('voterEmail') || '';
+    }
+
+    function signOut() {
+      Cookies.remove('address', { path: '/' });
+      Cookies.remove('voter_email', { path: '/' });
+      Cookies.remove('company_email', { path: '/' });
+      localStorage.removeItem('voterEmail');
+      localStorage.removeItem('companyEmail');
+      window.location.href = 'homepage.html';
+    }
+    document.getElementById('logoutBtn').addEventListener('click', signOut);
+
+    /* Load election details and stats (APIs preserved) */
+    async function loadElectionDetails(address) {
+      if (!address) return;
+      try {
+        const resp = await fetch(`/api/elections/${encodeURIComponent(address)}/details`, { headers: { 'Accept': 'application/json' }});
+        if (!resp.ok) {
+          document.getElementById('election-name').textContent = 'Unknown election';
+          return;
+        }
+        const data = await safeJson(resp) || {};
+        const name = data?.data?.election_name || data?.election_name || data?.name || '';
+        const desc = data?.data?.election_desc || data?.election_desc || data?.description || '';
+        const status = data?.data?.status || data?.status || 'Active';
+
+        document.getElementById('election-name').textContent = name || 'Unnamed election';
+        document.getElementById('election-desc').textContent = desc || '';
+        document.getElementById('electionStatus').textContent = String(status);
+        document.getElementById('electionStatusInline').textContent = String(status);
+
+        updateCastButtonStatus();
+      } catch (err) {
+        console.warn('loadElectionDetails error', err);
+      }
+    }
+
+    async function loadStats(address) {
+      if (!address) return;
+      try {
+        // Voters count
+        let votersCount = 0;
+        const respVoters = await fetch(`/api/elections/${encodeURIComponent(address)}/voters`, { headers:{ 'Accept':'application/json' }});
+        if (respVoters.ok) {
+          const j = await safeJson(respVoters);
+          const voters = Array.isArray(j?.voters) ? j.voters : (Array.isArray(j) ? j : []);
+          votersCount = voters.length || 0;
+        }
+        document.getElementById('votersCount').textContent = String(votersCount);
+
+        // Candidates count and total votes
+        let candidatesCount = 0;
+        let totalVotes = 0;
+        const respCandidates = await fetch(`/api/elections/${encodeURIComponent(address)}/candidates`, { headers:{ 'Accept':'application/json' }});
+        if (respCandidates.ok) {
+          const body = await safeJson(respCandidates);
+          let candidates = [];
+          if (Array.isArray(body)) candidates = body;
+          else if (Array.isArray(body?.candidates)) candidates = body.candidates;
+          else if (Array.isArray(body?.data?.candidates)) candidates = body.data.candidates;
+
+          candidatesCount = (candidates && candidates.length) || 0;
+          totalVotes = (candidates || []).reduce((s, c) => s + (Number(c.votes || c.voteCount || 0) || 0), 0);
+        }
+
+        document.getElementById('candidatesCount').textContent = String(candidatesCount);
+        document.getElementById('votesCount').textContent = String(totalVotes);
+      } catch (err) {
+        console.warn('loadStats error', err);
+      }
+    }
+
+    /* Modal + voting logic */
+    const modal = document.getElementById('voteModal');
+    const castBtn = document.getElementById('castVoteBtn');
+    const closeModalBtn = document.getElementById('closeModal');
+    const cancelVoteBtn = document.getElementById('cancelVote');
+    const candidatesContainer = document.getElementById('candidatesContainer');
+    const modalLoading = document.getElementById('modalLoading');
+    const voteForm = document.getElementById('voteForm');
+    const submitVoteBtn = document.getElementById('submitVote');
+
+    function openModal() {
+      modal.style.display = '';
+      modal.setAttribute('aria-hidden', 'false');
+      modalLoading.style.display = '';
+      candidatesContainer.innerHTML = '';
+      submitVoteBtn.disabled = true;
+      loadCandidatesForModal(getElectionAddress());
+    }
+
+    function closeModal() {
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+      candidatesContainer.innerHTML = '';
+    }
+
+    castBtn.addEventListener('click', openModal);
+    closeModalBtn.addEventListener('click', closeModal);
+    cancelVoteBtn.addEventListener('click', closeModal);
+
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal.getAttribute('aria-hidden') === 'false') {
+        closeModal();
+      }
+    });
+
+    async function loadCandidatesForModal(address) {
+      if (!address) {
+        modalLoading.textContent = 'Missing election address.';
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/elections/${encodeURIComponent(address)}/candidates`, { headers:{ 'Accept':'application/json' }});
+        if (!resp.ok) throw new Error('Failed to load candidates');
+        const body = await safeJson(resp);
+        let candidates = [];
+        if (Array.isArray(body)) candidates = body;
+        else if (Array.isArray(body?.candidates)) candidates = body.candidates;
+        else if (Array.isArray(body?.data?.candidates)) candidates = body.data.candidates;
+
+        if (!candidates || candidates.length === 0) {
+          modalLoading.textContent = 'No candidates available for this election.';
+          submitVoteBtn.disabled = true;
+          return;
+        }
+
+        // render radio list
+        modalLoading.style.display = 'none';
+        candidatesContainer.innerHTML = '';
+        candidates.forEach((c, idx) => {
+          const votes = Number(c.votes || c.voteCount || 0);
+          const ipfs = c.ipfsHash || c.imageHash || c.ipfs || c.imgHash || '';
+          const img = ipfs ? `https://ipfs.io/ipfs/${encodeURIComponent(ipfs)}` : './static/default-candidate.png';
+          const name = escapeHtml(c.name || c.candidate_name || `Candidate ${idx+1}`);
+          const desc = escapeHtml(c.description || c.candidate_description || '');
+
+          const wrapper = document.createElement('label');
+          wrapper.className = 'candidate-row';
+          wrapper.innerHTML = `
+            <input type="radio" name="candidate" value="${idx}" style="width:18px;height:18px;accent-color:#4f46e5;margin-right:6px;">
+            <img class="candidate-thumb" src="${img}" alt="${name}" onerror="this.src='./static/default-candidate.png'">
+            <div style="flex:1">
+              <div style="font-weight:600;color:#111827;font-size:14px;">${name}</div>
+              <div style="font-size:13px;color:#6b7280;margin-top:4px;line-height:1.4;">${desc}</div>
+            </div>
+            <div style="text-align:right;font-weight:600;font-size:13px;color:#6b7280;">
+              ${votes}
+              <div style="font-size:11px;color:#9ca3af;">current votes</div>
+            </div>
+          `;
+          candidatesContainer.appendChild(wrapper);
+        });
+
+        // enable submit when selection changes
+        candidatesContainer.querySelectorAll('input[name="candidate"]').forEach(r => {
+          r.addEventListener('change', () => submitVoteBtn.disabled = false);
+        });
+      } catch (err) {
+        modalLoading.textContent = 'Error loading candidates.';
+        console.error('loadCandidatesForModal', err);
+        submitVoteBtn.disabled = true;
+      }
+    }
+
+    voteForm.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const address = getElectionAddress();
+      const voterEmail = getVoterEmail();
+      if (!address || !voterEmail) {
+        alert('Session expired. Redirecting to login.');
+        window.location.href = 'voter_login.html';
+        return;
+      }
+
+      const selected = document.querySelector('input[name="candidate"]:checked');
+      if (!selected) {
+        alert('Please select a candidate.');
+        return;
+      }
+
+      // disable submit to prevent double-post
+      submitVoteBtn.disabled = true;
+      submitVoteBtn.textContent = 'Submitting...';
+
+      try {
+        const payload = {
+          candidate_id: parseInt(selected.value, 10),
+          voter_email: voterEmail,
+          election_address: address
+        };
+
+        const resp = await fetch(`/api/elections/${encodeURIComponent(address)}/vote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await safeJson(resp);
+        const ok = resp.ok || (result && (result.status === 'success' || result.success === true));
+
+        if (!ok) {
+          throw new Error(result?.message || result?.error || `Vote failed (${resp.status})`);
+        }
+
+        alert('Your vote has been recorded. Thank you!');
+        closeModal();
+        await loadStats(address);
+      } catch (err) {
+        console.error('submitVote error', err);
+        alert('Error casting vote: ' + (err.message || 'Unknown error'));
+      } finally {
+        submitVoteBtn.disabled = false;
+        submitVoteBtn.textContent = 'Submit vote';
+      }
+    });
+
+    
+
+    /* Initialization */
+    window.addEventListener('DOMContentLoaded', async () => {
+      const address = getElectionAddress();
+      const voter = getVoterEmail();
+      document.getElementById('voterEmailDisplay').textContent = voter || '—';
+      document.getElementById('addressDisplay').textContent = address || '—';
+
+      if (!address || !voter) {
+        alert('Session expired or missing. Redirecting to login.');
+        window.location.href = 'voter_login.html';
+        return;
+      }
+
+      await loadElectionDetails(address);
+      await loadStats(address);
+    });
+
+    // close modal when clicking backdrop (but not when clicking inside modal)
+    document.querySelectorAll('.modal-backdrop').forEach(back => {
+      back.addEventListener('click', (e) => {
+        if (e.target === back) closeModal();
+      });
+    });
+  </script>
+</body>
+</html>

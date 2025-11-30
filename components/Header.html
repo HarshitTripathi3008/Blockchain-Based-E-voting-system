@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    <style>
+        .header {
+            z-index: 10;
+            position: relative;
+        }
+        .header-menu {
+            max-height: 50px;
+            margin-bottom: 0;
+        }
+        .header-title {
+            vertical-align: middle;
+            font-size: 40px;
+            padding-left: 42%;
+            padding-top: 4%;
+        }
+        .user-info {
+            padding-right: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .header-divider {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Component -->
+    <div class="header">
+        <div class="ui secondary menu header-menu">
+            <div class="item header-title">
+                BlockVotes
+            </div>
+            <div class="right menu">
+                <div class="item">
+                    <i class="user icon"></i>
+                </div>
+                <div class="item user-info" id="user-email">
+                    Loading...
+                </div>
+            </div>
+        </div>
+        <hr class="header-divider">
+    </div>
+
+    <script>
+        // Initialize user email on load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateUserEmail();
+        });
+
+        // Function to update user email display
+        function updateUserEmail() {
+            const userEmailElement = document.getElementById('user-email');
+            const companyEmail = Cookies.get('company_email');
+            const voterEmail = Cookies.get('voter_email');
+            
+            if (companyEmail) {
+                userEmailElement.textContent = companyEmail;
+            } else if (voterEmail) {
+                userEmailElement.textContent = voterEmail;
+            } else {
+                userEmailElement.textContent = 'Not logged in';
+            }
+        }
+
+        // Function to get user type
+        function getUserType() {
+            if (Cookies.get('company_email')) {
+                return 'company';
+            } else if (Cookies.get('voter_email')) {
+                return 'voter';
+            }
+            return null;
+        }
+
+        // Function to get election address
+        function getElectionAddress() {
+            return Cookies.get('address');
+        }
+
+        // Function to check if user is authenticated
+        function isAuthenticated() {
+            return !!(Cookies.get('company_email') || Cookies.get('voter_email'));
+        }
+
+        // Make functions globally available
+        window.Header = {
+            updateUserEmail,
+            getUserType,
+            getElectionAddress,
+            isAuthenticated
+        };
+    </script>
+</body>
+</html>

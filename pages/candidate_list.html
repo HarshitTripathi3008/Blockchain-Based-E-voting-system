@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Candidate List - E-Voting</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+  <style>
+    .candidate-card { background: white; padding: 1rem; border-radius: .5rem; box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
+    .candidate-image { width:100%; height:160px; object-fit:cover; border-radius: .375rem; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="max-w-6xl mx-auto p-6">
+    <header class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold">Candidates</h1>
+      <div>
+        <button id="dashboardBtn" class="px-4 py-2 bg-indigo-600 text-white rounded mr-2">Dashboard</button>
+        <button id="votersBtn" class="px-4 py-2 bg-green-600 text-white rounded mr-2">Voters</button>
+        <button id="logoutBtn" class="px-4 py-2 bg-gray-500 text-white rounded">Logout</button>
+      </div>
+    </header>
+
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="candidate-card">
+        <h2 class="text-lg font-semibold mb-3">Register Candidate</h2>
+        <form id="registerCandidateForm" class="space-y-3">
+          <div>
+            <label class="block text-sm font-medium">Name</label>
+            <input id="candName" class="mt-1 block w-full border rounded px-3 py-2" type="text" required />
+          </div>
+          <div>
+            <label class="block text-sm font-medium">Description</label>
+            <textarea id="candDesc" class="mt-1 block w-full border rounded px-3 py-2" rows="3" required></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium">Email</label>
+            <input id="candEmail" class="mt-1 block w-full border rounded px-3 py-2" type="email" required />
+          </div>
+
+          <!-- Image upload has been removed. UI will use default image for candidates. -->
+
+          <div>
+            <button id="registerBtn" type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded">Register</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="md:col-span-2">
+        <h2 class="text-lg font-semibold mb-3">Registered Candidates</h2>
+        <div id="candidatesContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+        <div id="noCandidates" class="text-gray-600 mt-4 hidden">No candidates yet.</div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Helper: safe JSON parse
+    async function safeJson(response) {
+      try { return await response.json(); } catch { return null; }
+    }
+
+    // Helpers for election address (cookie or query param)
+    function getElectionAddress() {
+      const fromCookie = Cookies.get('address');
+      if (fromCookie) return fromCookie;
+      const params = new URLSearchParams(window.location.search);
+      return params.get('address') || '';
+    }
+
+    // Render candidates - uses candidate.imageHash or falls back to default
+    async function loadCandidates() {
+      const address = getElectionAddress();
+      if (!address) {
+        alert('No election selected. Redirecting to login.');
+        window.location.href = 'company_login.html';
+        return;
+      }
+
+      const url = `/api/elections/${encodeURIComponent(address)}/candidates`;
+      try {
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) throw new Error('Failed to load candidates');
+        const data = await res.json();
+        const candidates = Array.isArray(data.candidates) ? data.candidates : (Array.isArray(data) ? data : []);
+        const container = document.getElementById('candidatesContainer');
+        container.innerHTML = '';
+
+        if (!candidates || candidates.length === 0) {
+          document.getElementById('noCandidates').classList.remove('hidden');
+          return;
+        }
+        document.getElementById('noCandidates').classList.add('hidden');
+
+        for (const c of candidates) {
+          const cid = c.imageHash || c.cid || '';
+          const imgUrl = cid ? `https://ipfs.io/ipfs/${cid}` : './static/default-candidate.png';
+          const name = c.name || 'Unnamed';
+          const desc = c.description || '';
+          const votes = Number(c.votes || c.voteCount || 0);
+
+          const card = document.createElement('div');
+          card.className = 'candidate-card';
+          card.innerHTML = `
+            <img src="${imgUrl}" onerror="this.src='./static/default-candidate.png'" alt="${escapeHtml(name)}" class="candidate-image"/>
+            <div class="mt-3 font-semibold text-gray-800">${escapeHtml(name)}</div>
+            <div class="text-gray-600 text-sm mt-2">${escapeHtml(desc)}</div>
+            <div class="mt-3 text-indigo-600 font-bold">${votes} votes</div>
+          `;
+          container.appendChild(card);
+        }
+      } catch (err) {
+        console.error('loadCandidates error', err);
+        alert('Failed to load candidates.');
+      }
+    }
+
+    // Register candidate: no image upload step, send empty imageHash
+    async function registerCandidate(event) {
+      event.preventDefault();
+      const btn = document.getElementById('registerBtn');
+      btn.disabled = true;
+      btn.textContent = 'Registering...';
+
+      try {
+        const name = document.getElementById('candName').value.trim();
+        const description = document.getElementById('candDesc').value.trim();
+        const email = document.getElementById('candEmail').value.trim();
+        const electionAddress = getElectionAddress();
+
+        if (!name || !description || !email) {
+          alert('Please fill all fields.');
+          return;
+        }
+        if (!electionAddress) {
+          alert('Election address missing. Please re-login as company.');
+          return;
+        }
+
+        // IMPORTANT: no image upload - use empty imageHash
+        const imageHash = '';
+
+        // 1) Optional: add candidate to blockchain if client-side flow requires it.
+        // If your front-end calls a function to write on-chain (e.g., via web3/ethers),
+        // do it here. This code assumes the backend RegisterCandidate will store metadata.
+        //
+        // 2) Register metadata in backend (Mongo)
+        const payload = {
+          name,
+          description,
+          email,
+          imageHash,
+          election_address: electionAddress
+        };
+
+        const resp = await fetch('/api/candidate/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const json = await safeJson(resp);
+        const ok = resp.ok || json?.status === 'success' || json?.success === true;
+        if (!ok) throw new Error(json?.message || `Server responded ${resp.status}`);
+
+        alert('Candidate added successfully!');
+        document.getElementById('registerCandidateForm').reset();
+        await loadCandidates();
+      } catch (err) {
+        console.error('registerCandidate error', err);
+        alert('Error: ' + (err.message || 'Unknown error'));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Register';
+      }
+    }
+
+    // Utilities
+    function escapeHtml(text) {
+      return String(text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    }
+
+    function signOut() {
+      Cookies.remove('address', { path: '/' });
+      Cookies.remove('company_email', { path: '/' });
+      window.location.href = 'homepage.html';
+    }
+
+    // Event wiring
+    document.getElementById('dashboardBtn').addEventListener('click', () => {
+      const addr = getElectionAddress();
+      window.location.href = `company_dashboard.html?address=${encodeURIComponent(addr)}`;
+    });
+    document.getElementById('votersBtn').addEventListener('click', () => {
+      const addr = getElectionAddress();
+      window.location.href = `voting_list.html?address=${encodeURIComponent(addr)}`;
+    });
+    document.getElementById('logoutBtn').addEventListener('click', signOut);
+    document.getElementById('registerCandidateForm').addEventListener('submit', registerCandidate);
+
+    // Init
+    loadCandidates();
+  </script>
+</body>
+</html>

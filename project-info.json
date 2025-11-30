@@ -1,0 +1,14 @@
+{
+  "name": "MAJOR-PROJECT",
+  "version": "1.0.0",
+  "description": "A blockchain-based voting system for secure and transparent elections.",
+  "author": "",
+  "keywords": [],
+  "tech_stack": {
+    "frontend": "HTML, CSS, JavaScript",
+    "backend": "Golang",
+    "database": "MongoDB",
+    "blockchain": "Web3, Ethereum",
+    "storage": "IPFS"
+  }
+}
