@@ -1,19 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css">
+    <!-- Global CSS & JS -->
+    <link rel="stylesheet" href="/static/css/global.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    <script src="/static/js/ui.js"></script>
     <style>
         .layout-container {
             min-height: 100vh;
             display: flex;
             flex-direction: column;
         }
+
         .main-content {
             flex: 1;
-            padding: 20px;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
         }
+
         .content-wrapper {
             max-width: 1200px;
             margin: 0 auto;
@@ -21,12 +31,12 @@
         }
     </style>
 </head>
+
 <body>
-    <!-- Layout Component -->
     <div class="layout-container">
         <!-- Header Section -->
         <div id="header-container"></div>
-        
+
         <!-- Main Content -->
         <div class="main-content">
             <div class="content-wrapper" id="content-area">
@@ -37,7 +47,7 @@
 
     <script>
         // Initialize layout on load
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             loadHeader();
             initializeLayout();
         });
@@ -47,19 +57,22 @@
             try {
                 const response = await fetch('/components/Header.html');
                 const headerHtml = await response.text();
-                document.getElementById('header-container').innerHTML = headerHtml;
+                // Extract body content from the fetched HTML if it's a full document
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(headerHtml, 'text/html');
+                const bodyContent = doc.body.innerHTML;
+                document.getElementById('header-container').innerHTML = bodyContent;
+
+                // Re-execute scripts in the injected content
+                Array.from(doc.querySelectorAll('script')).forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                    newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                    document.body.appendChild(newScript);
+                });
+
             } catch (error) {
                 console.error('Error loading header:', error);
-                // Fallback header
-                document.getElementById('header-container').innerHTML = `
-                    <div class="ui secondary menu">
-                        <div class="item" style="font-size: 24px;">BlockVotes</div>
-                        <div class="right menu">
-                            <div class="item">Guest</div>
-                        </div>
-                    </div>
-                    <hr>
-                `;
             }
         }
 
@@ -68,9 +81,12 @@
             window.Layout = {
                 setContent,
                 setTitle,
-                showLoading,
-                hideLoading,
-                showMessage
+                showLoading: UI.showLoader,
+                hideLoading: UI.hideLoader,
+                showMessage: (type, header, content) => UI.toast(`${header}: ${content}`, type),
+                showSuccess: (msg) => UI.toast(msg, 'success'),
+                showError: (msg) => UI.toast(msg, 'error'),
+                showInfo: (msg) => UI.toast(msg, 'info')
             };
         }
 
@@ -81,78 +97,9 @@
 
         // Set page title
         function setTitle(title) {
-            document.title = title;
+            document.title = title + " | BlockVotes";
         }
-
-        // Show loading indicator
-        function showLoading(message = 'Loading...') {
-            setContent(`
-                <div class="ui active dimmer">
-                    <div class="ui text loader">${message}</div>
-                </div>
-            `);
-        }
-
-        // Hide loading indicator
-        function hideLoading() {
-            const dimmer = document.querySelector('.ui.dimmer');
-            if (dimmer) {
-                dimmer.remove();
-            }
-        }
-
-        // Show message
-        function showMessage(type, header, content, autoHide = true) {
-            const messageHtml = `
-                <div class="ui ${type} message">
-                    <i class="close icon"></i>
-                    <div class="header">${header}</div>
-                    <p>${content}</p>
-                </div>
-            `;
-            
-            // Add message at the top of content
-            document.getElementById('content-area').innerHTML = messageHtml + document.getElementById('content-area').innerHTML;
-            
-            // Add close functionality
-            const closeButton = document.querySelector('.message .close.icon');
-            if (closeButton) {
-                closeButton.addEventListener('click', function() {
-                    this.closest('.message').remove();
-                });
-            }
-            
-            if (autoHide) {
-                setTimeout(() => {
-                    const message = document.querySelector('.ui.message');
-                    if (message) message.remove();
-                }, 5000);
-            }
-        }
-
-        // Show success message
-        function showSuccess(message, autoHide = true) {
-            showMessage('success', 'Success', message, autoHide);
-        }
-
-        // Show error message
-        function showError(message, autoHide = true) {
-            showMessage('error', 'Error', message, autoHide);
-        }
-
-        // Show info message
-        function showInfo(message, autoHide = true) {
-            showMessage('info', 'Info', message, autoHide);
-        }
-
-        // Make message functions available
-        window.Layout.showSuccess = showSuccess;
-        window.Layout.showError = showError;
-        window.Layout.showInfo = showInfo;
     </script>
-
-    <!-- jQuery for Semantic UI components -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.js"></script>
 </body>
+
 </html>

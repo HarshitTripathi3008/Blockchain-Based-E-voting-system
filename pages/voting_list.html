@@ -1,591 +1,452 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8"/>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Voter Management</title>
-
-  <!-- Tailwind for layout + Semantic UI for modal -->
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css">
+  <title>Voter Management - BlockVotes</title>
+  <link rel="stylesheet" href="/static/css/global.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
+    rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
-
-  <link rel="shortcut icon" type="image/x-icon" href="../static/logo3.png">
+  <script src="/static/js/ui.js"></script>
   <style>
-    /* small compatibility styles */
-    .voter-card { background:white; border-radius:8px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
-    .action-buttons button { margin-right: .5rem; }
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 250px;
+      background: rgba(23, 23, 33, 0.9);
+      border-right: 1px solid var(--glass-border);
+      padding: 2rem 1rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 2rem;
+      overflow-y: auto;
+    }
+
+    .nav-btn {
+      text-align: left;
+      padding: 1rem;
+      margin-bottom: 0.5rem;
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 1rem;
+      width: 100%;
+      font-family: var(--font-body);
+    }
+
+    .nav-btn:hover,
+    .nav-btn.active {
+      background: rgba(108, 92, 231, 0.1);
+      color: #fff;
+    }
+
+    .voter-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      padding: 1.5rem;
+      border-radius: 12px;
+      margin-bottom: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .action-btn {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-left: 0.5rem;
+    }
+
+    .btn-edit {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+    }
+
+    .btn-delete {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+    }
+
+    .btn-details {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+    }
+
+    /* Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .modal-content {
+      background: #1e1e2f;
+      padding: 2rem;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 500px;
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
 
-  <div class="flex">
-    <!-- Sidebar -->
-    <aside class="w-60 h-screen bg-blue-900 text-white flex flex-col pt-10">
-      <img src="../static/logo3.png" alt="Logo" class="w-16 mx-auto mb-6" />
-      <nav class="space-y-2 px-4">
-        <button id="dashboard-link" class="w-full text-left block px-4 py-2 hover:bg-blue-700 rounded">Dashboard</button>
-        <button id="candidates-link" class="w-full text-left block px-4 py-2 hover:bg-blue-700 rounded">Candidate List</button>
-        <button id="voters-link" class="w-full text-left block px-4 py-2 hover:bg-blue-700 rounded bg-blue-700">Voter List</button>
-        <button id="logoutBtn" class="w-full mt-6 px-4 py-2 bg-red-600 hover:bg-red-700 rounded">Logout</button>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div style="text-align: center; margin-bottom: 3rem;">
+        <img src="/static/logo3.png" alt="Logo" style="width: 50px; margin-bottom: 0.5rem;" />
+        <h3 style="margin:0;">BlockVotes</h3>
+      </div>
+      <nav style="flex: 1;">
+        <button id="dashboardBtn" class="nav-btn">Dashboard</button>
+        <button id="candidatesBtn" class="nav-btn">Candidate List</button>
+        <button id="votersBtn" class="nav-btn active">Voter List</button>
+        <button id="createBtn" class="nav-btn">Create Election</button>
       </nav>
+      <button id="logoutBtn" class="nav-btn" style="color: var(--error-color); margin-top: auto;">Logout</button>
     </aside>
 
-    <!-- Main content -->
-    <main class="flex-1 p-10">
-      <h2 class="text-3xl font-bold text-blue-900 mb-4">Voter Management</h2>
+    <main class="main-content">
+      <h2 style="margin-bottom: 2rem;">Voter Management</h2>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <!-- Voter list -->
-        <section class="lg:col-span-2">
-          <div class="mb-4">
-            <h3 class="text-xl font-semibold text-gray-800">Voter List</h3>
-            <p class="text-sm text-gray-600">View and manage voter registrations for this election.</p>
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
+        <!-- Voter List -->
+        <div>
+          <h3 style="margin-bottom: 1rem; color: var(--text-muted);">Registered Voters</h3>
+          <div id="voters-list">
+            <!-- Populated via JS -->
           </div>
+        </div>
 
-          <div id="voters-list" class="space-y-4">
-            <!-- voters rendered here -->
-          </div>
-        </section>
+        <!-- Register Form -->
+        <div class="glass-card" style="height: fit-content;">
+          <h3 style="margin-bottom: 1.5rem; color: var(--accent-color);">Register New Voter</h3>
+          <form id="registerVoterForm">
+            <div style="margin-bottom: 1rem;">
+              <div style="display: flex; gap: 0.5rem;">
+                <input id="register_voter_email" type="email" required placeholder="Voter Email (ID)" style="flex:1;" />
+                <button id="sendOtpBtn" type="button" class="btn btn-outline" style="font-size: 0.8rem;">Send
+                  OTP</button>
+              </div>
+            </div>
+            <div style="margin-bottom: 1rem;">
+              <input id="register_voter_otp" type="text" placeholder="Enter OTP from Email" />
+            </div>
+            <div style="margin-bottom: 1rem;">
+              <input id="register_voter_name" type="text" required placeholder="Full Name" />
+            </div>
+            <div style="margin-bottom: 1rem;">
+              <label style="font-size:0.8rem; color:var(--text-muted);">Date of Birth</label>
+              <input id="register_voter_dob" type="date" required />
+            </div>
+            <div style="margin-bottom: 1rem;">
+              <input id="register_voter_mobile" type="tel" placeholder="Mobile Number (+91...)" />
+            </div>
+            <div style="margin-bottom: 1rem;">
+              <textarea id="register_voter_address" rows="2" placeholder="Residential Address"></textarea>
+            </div>
+            <div style="margin-bottom: 1rem;">
+              <input id="register_voter_father" type="text" placeholder="Father's Name" />
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+              <input id="register_voter_mother" type="text" placeholder="Mother's Name" />
+            </div>
 
-        <!-- Register voter -->
-        <aside>
-          <div class="bg-white p-6 rounded shadow">
-            <h3 class="text-lg font-semibold mb-4">Register Voter</h3>
-            <form id="registerVoterForm" class="space-y-4" onsubmit="return false;">
-              <div>
-                <label class="block text-sm font-medium mb-1">Email</label>
-                <div class="flex gap-2">
-                  <input id="register_voter_email" type="email" required placeholder="voter@example.com" class="w-full px-3 py-2 border rounded" />
-                  <button id="sendOtpBtn" class="px-3 py-2 bg-gray-200 rounded">Send OTP</button>
-                </div>
-              </div>
-              <div>
-                <label class="block text-sm font-medium mb-1">OTP (check voter email)</label>
-                <input id="register_voter_otp" type="text" maxlength="6" placeholder="Enter OTP" class="w-full px-3 py-2 border rounded" />
-              </div>
-              <div>
-                <label class="block text-sm font-medium mb-1">Full Name</label>
-                <input id="register_voter_name" type="text" required placeholder="Full name" class="w-full px-3 py-2 border rounded" />
-              </div>
-              <div>
-                <label class="block text-sm font-medium mb-1">Date of Birth</label>
-                <input id="register_voter_dob" type="date" required class="w-full px-3 py-2 border rounded" />
-                <p class="text-xs mt-1">Voter must be 18+ (YYYY-MM-DD)</p>
-              </div>
-              <div>
-                <label class="block text-sm font-medium mb-1">Mobile</label>
-                <input id="register_voter_mobile" type="tel" placeholder="+911234567890" class="w-full px-3 py-2 border rounded" />
-              </div>
-              <div>
-                <label class="block text-sm font-medium mb-1">Address</label>
-                <textarea id="register_voter_address" class="w-full px-3 py-2 border rounded" rows="2" placeholder="Residential address (optional)"></textarea>
-              </div>
-              <div>
-                <label class="block text-sm font-medium mb-1">Father's Name</label>
-                <input id="register_voter_father" type="text" placeholder="Father's name" class="w-full px-3 py-2 border rounded" />
-              </div>
-              <div>
-                <label class="block text-sm font-medium mb-1">Mother's Name</label>
-                <input id="register_voter_mother" type="text" placeholder="Mother's name" class="w-full px-3 py-2 border rounded" />
-              </div>
-
-              <div>
-                <button id="registerVoterBtn" type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded">Verify & Register</button>
-              </div>
-            </form>
-          </div>
-        </aside>
-
+            <button id="registerVoterBtn" type="submit" class="btn btn-primary" style="width: 100%;">Verify &
+              Register</button>
+          </form>
+        </div>
       </div>
     </main>
   </div>
 
-  <!-- Edit Voter Modal (Semantic UI) - UPDATED to full fields -->
-  <div class="ui modal tiny" id="editVoterModal">
-    <i class="close icon"></i>
-    <div class="header">Edit Voter Details</div>
-    <div class="content">
-      <div class="ui form">
-        <div class="field">
-          <label>Full Name</label>
-          <input type="text" id="edit_full_name" placeholder="Full name" style="width:100%" />
-        </div>
-        <div class="field">
-          <label>Email</label>
-          <input type="email" id="edit_email" placeholder="Email" style="width:100%" />
-        </div>
-        <div class="field">
-          <label>Date of Birth</label>
-          <input type="date" id="edit_dob" placeholder="YYYY-MM-DD" style="width:100%" />
-        </div>
-        <div class="field">
-          <label>Mobile</label>
-          <input type="tel" id="edit_mobile" placeholder="+911234567890" style="width:100%" />
-        </div>
-        <div class="field">
-          <label>Address</label>
-          <textarea id="edit_address" rows="2" style="width:100%"></textarea>
-        </div>
-        <div class="field">
-          <label>Father's Name</label>
-          <input type="text" id="edit_father" placeholder="Father's name" style="width:100%" />
-        </div>
-        <div class="field">
-          <label>Mother's Name</label>
-          <input type="text" id="edit_mother" placeholder="Mother's name" style="width:100%" />
-        </div>
-        <div class="field">
-          <label>New Password (optional)</label>
-          <input type="password" id="edit_password" placeholder="Leave blank to keep existing" style="width:100%" />
-        </div>
+  <!-- Edit/Details Modal -->
+  <div id="voterModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3 id="modalTitle" style="margin-bottom: 1.5rem;">Details</h3>
+      <div id="modalBody"></div>
+      <div style="margin-top: 1.5rem; text-align: right; display: flex; justify-content: flex-end; gap: 0.5rem;">
+        <button id="modalCloseBtn" class="btn btn-outline">Close</button>
+        <button id="modalSaveBtn" class="btn btn-primary" style="display:none;">Save Changes</button>
       </div>
     </div>
-    <div class="actions">
-      <button class="ui positive button" id="confirmEditBtn"><i class="checkmark icon"></i> Save</button>
-      <button class="ui negative button" id="cancelEditBtn">Cancel</button>
-    </div>
   </div>
-
-  <!-- NEW: Voter Details Modal (read-only) -->
-  <div class="ui modal" id="voterDetailsModal">
-    <i class="close icon"></i>
-    <div class="header">Voter Details</div>
-    <div class="content">
-      <div class="ui relaxed divided list" style="margin-top: 6px;">
-        <div class="item"><strong>Name:</strong> <span id="detail_full_name"></span></div>
-        <div class="item"><strong>Email:</strong> <span id="detail_email"></span></div>
-        <div class="item"><strong>DOB:</strong> <span id="detail_dob"></span></div>
-        <div class="item"><strong>Age:</strong> <span id="detail_age"></span></div>
-        <div class="item"><strong>Mobile:</strong> <span id="detail_mobile"></span></div>
-        <div class="item"><strong>Address:</strong> <span id="detail_address"></span></div>
-        <div class="item"><strong>Father's Name:</strong> <span id="detail_father"></span></div>
-        <div class="item"><strong>Mother's Name:</strong> <span id="detail_mother"></span></div>
-        <div class="item"><strong>Voter ID:</strong> <span id="detail_id"></span></div>
-      </div>
-    </div>
-    <div class="actions">
-      <button class="ui primary button" id="closeDetailsBtn">Close</button>
-    </div>
-  </div>
-
-  <!-- jQuery + Semantic UI for modal -->
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.js"></script>
 
   <script>
-  // Preserve previous logic (safe JSON parsing, election address handling, voters operations)
-  let voters = [];
-  let currentEditVoterId = null;
-  let electionData = { name: '', description: '', address: '' };
+    // --- State & Helpers ---
+    let voters = [];
+    let currentEditVoterId = null;
 
-  async function safeJson(response) {
-    try { return await response.json(); } catch (err) { return null; }
-  }
-
-  function getElectionAddress() {
-    const fromCookie = Cookies.get('address');
-    if (fromCookie) return fromCookie;
-    const params = new URLSearchParams(window.location.search);
-    return params.get('address') || '';
-  }
-
-  document.addEventListener('DOMContentLoaded', function() {
-    loadElectionData();
-    setupEventListeners();
-  });
-
-  function setupEventListeners() {
-    const dash = document.getElementById('dashboard-link');
-    const cand = document.getElementById('candidates-link');
-    const votersLink = document.getElementById('voters-link');
-    if (dash) dash.addEventListener('click', () => navigateTo('company_dashboard'));
-    if (cand) cand.addEventListener('click', () => navigateTo('candidate_list'));
-    if (votersLink) votersLink.addEventListener('click', () => navigateTo('voting_list'));
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) logoutBtn.addEventListener('click', signOut);
-
-    const form = document.getElementById('registerVoterForm');
-    if (form) form.addEventListener('submit', registerVoter);
-
-    // NEW: Send OTP button next to email input
-    const sendOtpBtn = document.getElementById('sendOtpBtn');
-    if (sendOtpBtn) sendOtpBtn.addEventListener('click', async (ev) => { ev.preventDefault(); await handleSendOtp(); });
-
-    const confirmBtn = document.getElementById('confirmEditBtn');
-    if (confirmBtn) confirmBtn.addEventListener('click', updateVoterEmail);
-
-    const cancelBtn = document.getElementById('cancelEditBtn');
-    if (cancelBtn) cancelBtn.addEventListener('click', () => $('#editVoterModal').modal('hide'));
-
-    const closeDetailsBtn = document.getElementById('closeDetailsBtn');
-    if (closeDetailsBtn) closeDetailsBtn.addEventListener('click', () => $('#voterDetailsModal').modal('hide'));
-  }
-
-  async function loadElectionData() {
-    try {
-      const electionAddress = getElectionAddress();
-      if (!electionAddress) {
-        alert('No election address found. Redirecting to login...');
-        window.location.href = 'company_login.html';
-        return;
-      }
-      electionData.address = electionAddress;
-      await loadElectionDetails(electionAddress);
-      await loadVoters(electionAddress);
-    } catch (error) {
-      console.error('Error loading election data:', error);
-      alert('Redirecting you to login page...');
-      window.location.href = 'company_login.html';
-    }
-  }
-
-  async function loadElectionDetails(electionAddress) {
-    try {
-      const encoded = encodeURIComponent(electionAddress);
-      const response = await fetch(`/api/elections/${encoded}/details`, { headers: { 'Accept': 'application/json' }});
-      if (response.ok) {
-        const data = await safeJson(response);
-        electionData.name = data?.data?.election_name || '';
-        electionData.description = data?.data?.election_desc || '';
-      }
-    } catch (err) {
-      console.error('Error loading election details', err);
-      throw err;
-    }
-  }
-
-  async function loadVoters(electionAddress) {
-    try {
-      const encoded = encodeURIComponent(electionAddress);
-      const response = await fetch(`/api/elections/${encoded}/voters`, { headers: { 'Accept': 'application/json' }});
-      if (response.ok) {
-        const data = await safeJson(response);
-        voters = Array.isArray(data?.voters) ? data.voters : (Array.isArray(data) ? data : []);
-        renderVoters();
-      } else {
-        console.warn('Failed to load voters', response.status);
-        voters = [];
-        renderVoters();
-      }
-    } catch (err) {
-      console.error('Error loading voters', err);
-      voters = [];
-      renderVoters();
-    }
-  }
-
-  // Render voters - now shows more fields and adds a Details button
-  function renderVoters() {
-    const list = document.getElementById('voters-list');
-    list.innerHTML = '';
-    if (!voters || voters.length === 0) {
-      list.innerHTML = '<div class="text-gray-600">No voters registered yet.</div>';
-      return;
+    async function safeJson(resp) {
+      try { return await resp.json(); } catch { return null; }
     }
 
-    voters.forEach(voter => {
-      const id = voter.id ?? voter._id ?? voter.email;
-      const card = document.createElement('div');
-      card.className = 'voter-card flex items-center justify-between';
-      const dobStr = voter.dob ? `<div class="text-sm text-gray-500">DOB: ${escapeHtml(voter.dob)}</div>` : '';
-      const mobileStr = voter.mobile ? `<div class="text-sm text-gray-500">Mobile: ${escapeHtml(voter.mobile)}</div>` : '';
-      // include address and parent names in the card summary (short) and full modal for details
-      const addrShort = voter.address ? `<div class="text-sm text-gray-500">Address: ${escapeHtml(shorten(voter.address, 60))}</div>` : '';
-      const fatherShort = voter.father_name ? `<div class="text-sm text-gray-500">Father: ${escapeHtml(shorten(voter.father_name, 30))}</div>` : '';
-      const motherShort = voter.mother_name ? `<div class="text-sm text-gray-500">Mother: ${escapeHtml(shorten(voter.mother_name, 30))}</div>` : '';
-
-      card.innerHTML = `
-        <div>
-          <div class="font-semibold">${escapeHtml(voter.full_name || voter.email)}</div>
-          <div class="text-sm text-gray-500">Email: ${escapeHtml(voter.email)}</div>
-          ${dobStr}
-          ${mobileStr}
-          ${addrShort}
-          ${fatherShort}
-          ${motherShort}
-        </div>
-        <div class="action-buttons flex items-center">
-          <button class="bg-blue-100 text-blue-700 px-3 py-1 rounded details-btn mr-2" data-voter-id="${escapeHtml(String(id))}">Details</button>
-          <button class="bg-green-100 text-green-700 px-3 py-1 rounded edit-btn mr-2" data-voter-id="${escapeHtml(String(id))}" data-voter-email="${escapeHtml(voter.email)}">Edit</button>
-          <button class="bg-red-100 text-red-700 px-3 py-1 rounded delete-btn" data-voter-id="${escapeHtml(String(id))}">Delete</button>
-        </div>
-      `;
-      list.appendChild(card);
-    });
-
-    document.querySelectorAll('.edit-btn').forEach(btn => btn.addEventListener('click', openEditModal));
-    document.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', deleteVoter));
-    document.querySelectorAll('.details-btn').forEach(btn => btn.addEventListener('click', openDetailsModal));
-  }
-
-  // Open read-only details modal and populate fields
-  function openDetailsModal(event) {
-    const btn = event.currentTarget;
-    const vid = btn.getAttribute('data-voter-id');
-
-    const voter = voters.find(v => (v.id === vid) || (v._id === vid) || (v.email === vid) || String(v.id) === vid || String(v._id) === vid);
-    if (!voter) {
-      alert('Voter details not found');
-      return;
+    function getElectionAddress() {
+      const fromCookie = Cookies.get('address');
+      if (fromCookie) return fromCookie;
+      const params = new URLSearchParams(window.location.search);
+      return params.get('address') || '';
     }
 
-    // compute age if DOB exists
-    let ageStr = '';
-    if (voter.dob) {
+    function escapeHtml(text) {
+      return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // --- Core Logic ---
+    async function loadVoters() {
+      const address = getElectionAddress();
+      if (!address) return;
+
+      UI.showLoader('Loading Voters...');
       try {
-        const d = new Date(voter.dob + 'T00:00:00Z');
-        if (!isNaN(d.getTime())) {
-          const now = new Date();
-          let age = now.getUTCFullYear() - d.getUTCFullYear();
-          const m = now.getUTCMonth() - d.getUTCMonth();
-          if (m < 0 || (m === 0 && now.getUTCDate() < d.getUTCDate())) age--;
-          ageStr = String(age);
+        const resp = await fetch(`/api/elections/${encodeURIComponent(address)}/voters`, { headers: { 'Accept': 'application/json' } });
+        if (resp.ok) {
+          const data = await safeJson(resp);
+          voters = Array.isArray(data?.voters) ? data.voters : (Array.isArray(data) ? data : []);
+          renderVoters();
         }
-      } catch (e) { ageStr = ''; }
+      } catch (err) {
+        console.error('Error loading voters', err);
+        UI.toast('Failed to load voters', 'error');
+      } finally {
+        UI.hideLoader();
+      }
     }
 
-    // populate modal fields (escape)
-    document.getElementById('detail_full_name').textContent = voter.full_name || '';
-    document.getElementById('detail_email').textContent = voter.email || '';
-    document.getElementById('detail_dob').textContent = voter.dob || '';
-    document.getElementById('detail_age').textContent = ageStr || '';
-    document.getElementById('detail_mobile').textContent = voter.mobile || '';
-    document.getElementById('detail_address').textContent = voter.address || '';
-    document.getElementById('detail_father').textContent = voter.father_name || '';
-    document.getElementById('detail_mother').textContent = voter.mother_name || '';
-    document.getElementById('detail_id').textContent = voter.id || voter._id || '';
-
-    // show Semantic UI modal
-    $('#voterDetailsModal').modal({detachable:false}).modal('show');
-  }
-
-  // OPEN edit modal (now fills all fields)
-  function openEditModal(event) {
-    const btn = event.currentTarget;
-    currentEditVoterId = btn.getAttribute('data-voter-id');
-
-    const voter = voters.find(v => (v.id === currentEditVoterId) || (v._id === currentEditVoterId) || (v.email === currentEditVoterId) || String(v.id) === currentEditVoterId || String(v._id) === currentEditVoterId);
-
-    document.getElementById('edit_full_name').value = voter?.full_name || '';
-    document.getElementById('edit_email').value = voter?.email || '';
-    document.getElementById('edit_dob').value = voter?.dob || '';
-    document.getElementById('edit_mobile').value = voter?.mobile || '';
-    document.getElementById('edit_address').value = voter?.address || '';
-    document.getElementById('edit_father').value = voter?.father_name || '';
-    document.getElementById('edit_mother').value = voter?.mother_name || '';
-    document.getElementById('edit_password').value = '';
-
-    $('#editVoterModal').modal({detachable:false}).modal('show');
-  }
-
-  // SAVE edits (sends full update payload)
-  async function updateVoterEmail() {
-    try {
-      if (!currentEditVoterId) { alert('No voter selected'); return; }
-
-      const fullName = document.getElementById('edit_full_name').value.trim();
-      const email = document.getElementById('edit_email').value.trim();
-      const dob = document.getElementById('edit_dob').value.trim();
-      const mobile = document.getElementById('edit_mobile').value.trim();
-      const address = document.getElementById('edit_address').value.trim();
-      const father = document.getElementById('edit_father').value.trim();
-      const mother = document.getElementById('edit_mother').value.trim();
-      const password = document.getElementById('edit_password').value;
-
-      const payload = {};
-      if (fullName) payload.full_name = fullName;
-      if (email) payload.email = email;
-      if (dob) payload.dob = dob;
-      if (mobile) payload.mobile = mobile;
-      if (address) payload.address = address;
-      if (father) payload.father_name = father;
-      if (mother) payload.mother_name = mother;
-      if (password) payload.password = password;
-
-      if (Object.keys(payload).length === 0) {
-        alert('No changes to save.');
+    function renderVoters() {
+      const list = document.getElementById('voters-list');
+      list.innerHTML = '';
+      if (voters.length === 0) {
+        list.innerHTML = '<div style="color:var(--text-muted);">No voters found.</div>';
         return;
       }
 
-      // Basic client-side checks
-      if (payload.mobile && !/^\+?[0-9]{7,15}$/.test(payload.mobile)) {
-        alert('Invalid mobile number (digits only, optional +, 7-15 chars)'); return;
-      }
-      if (payload.dob && isNaN(new Date(payload.dob + 'T00:00:00Z').getTime())) {
-        alert('Invalid DOB format (YYYY-MM-DD)'); return;
-      }
-
-      const response = await fetch(`/api/voters/${encodeURIComponent(currentEditVoterId)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      voters.forEach(v => {
+        const id = v.id || v._id || v.email;
+        const el = document.createElement('div');
+        el.className = 'voter-card fade-in';
+        el.innerHTML = `
+                <div>
+                    <h4 style="margin:0;">${escapeHtml(v.full_name || v.email)}</h4>
+                    <p style="color:var(--text-muted); font-size:0.9rem;">${escapeHtml(v.email)}</p>
+                </div>
+                <div>
+                    <button class="action-btn btn-details" onclick="openDetails('${id}')">Details</button>
+                    <button class="action-btn btn-edit" onclick="openEdit('${id}')">Edit</button>
+                    <button class="action-btn btn-delete" onclick="deleteVoter('${id}')">Delete</button>
+                </div>
+            `;
+        list.appendChild(el);
       });
-
-      const result = await safeJson(response);
-      const ok = response.ok || result?.status === 'success' || result?.success === true;
-      if (ok) {
-        alert(result?.message || 'Voter updated');
-        $('#editVoterModal').modal('hide');
-        await loadVoters(electionData.address);
-      } else {
-        throw new Error(result?.message || `Failed to update voter (${response.status})`);
-      }
-    } catch (err) {
-      console.error('Error updating voter:', err);
-      alert('Error: ' + (err.message || 'Unknown error'));
     }
-  }
 
-  async function deleteVoter(event) {
-    const voterId = event.currentTarget.getAttribute('data-voter-id');
-    if (!confirm('Are you sure you want to delete this voter?')) return;
-    const btn = event.currentTarget;
-    btn.disabled = true;
-    btn.classList.add('opacity-60');
-    try {
-      const response = await fetch(`/api/voters/${encodeURIComponent(voterId)}`, { method: 'DELETE', headers: { 'Accept': 'application/json' }});
-      const result = await safeJson(response);
-      const ok = response.ok || result?.success === true || result?.status === 'success';
-      if (ok) {
-        alert(result?.message || 'Voter deleted');
-        await loadVoters(electionData.address);
-      } else {
-        throw new Error(result?.message || `Failed to delete voter (${response.status})`);
+    // --- Modal Logic ---
+    const modal = document.getElementById('voterModal');
+    const modalBody = document.getElementById('modalBody');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalSaveBtn = document.getElementById('modalSaveBtn');
+
+    window.openDetails = (id) => {
+      const v = voters.find(x => (x.id || x._id || x.email) == id);
+      if (!v) return;
+
+      modalTitle.textContent = "Voter Details";
+      modalSaveBtn.style.display = 'none';
+
+      let html = `<div style="display: grid; gap: 0.5rem; font-size: 0.95rem;">`;
+      for (const [key, val] of Object.entries(v)) {
+        if (['password', 'otp', '_id', 'election_address'].includes(key)) continue;
+        html += `<div><strong style="color:var(--text-muted); text-transform:capitalize;">${key.replace('_', ' ')}:</strong> <span style="color:#fff;">${escapeHtml(val)}</span></div>`;
       }
-    } catch (err) {
-      console.error('Error deleting voter:', err);
-      alert('Error: ' + (err.message || 'Unknown error'));
-    } finally {
-      btn.disabled = false;
-      btn.classList.remove('opacity-60');
-    }
-  }
+      html += `</div>`;
 
-  // NEW: send OTP to voter email (called when admin clicks "Send OTP" next to email field)
-  async function handleSendOtp() {
-    try {
-      const email = (document.getElementById('register_voter_email').value || '').trim();
-      if (!email) { alert('Enter email to send OTP'); return; }
-      const electionAddress = electionData.address || getElectionAddress();
-      const resp = await fetch('/api/voters/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, election_address: electionAddress })
-      });
-      const json = await safeJson(resp);
-      if (resp.ok && (json?.status === 'success' || json?.message)) {
-        alert(json?.message || 'OTP sent to voter email');
-      } else {
-        throw new Error(json?.message || `Failed to send OTP (${resp.status})`);
-      }
-    } catch (err) {
-      console.error('Send OTP error:', err);
-      alert('Error sending OTP: ' + (err.message || err));
-    }
-  }
+      modalBody.innerHTML = html;
+      modal.classList.add('active');
+    };
 
-  async function registerVoter(event) {
-    event.preventDefault();
-    const btn = document.getElementById('registerVoterBtn');
-    btn.disabled = true; btn.classList.add('opacity-60');
+    window.openEdit = (id) => {
+      const v = voters.find(x => (x.id || x._id || x.email) == id);
+      if (!v) return;
+      currentEditVoterId = id;
 
-    try {
-      const email = (document.getElementById('register_voter_email').value || '').trim();
-      const otp = (document.getElementById('register_voter_otp')?.value || '').trim(); // OTP input is required for the new flow
-      const name = (document.getElementById('register_voter_name').value || '').trim();
-      const dob = (document.getElementById('register_voter_dob').value || '').trim();
-      const mobile = (document.getElementById('register_voter_mobile').value || '').trim();
-      const address = (document.getElementById('register_voter_address').value || '').trim();
-      const father = (document.getElementById('register_voter_father').value || '').trim();
-      const mother = (document.getElementById('register_voter_mother').value || '').trim();
+      modalTitle.textContent = "Edit Voter";
+      modalSaveBtn.style.display = 'block';
 
-      if (!email) { alert('Please enter a valid email'); return; }
-      if (!otp) { alert('Please request and enter OTP sent to the voter email'); return; }
-      if (!name) { alert('Please enter full name'); return; }
-      if (!dob) { alert('Please enter date of birth'); return; }
+      modalBody.innerHTML = `
+            <div style="display: grid; gap: 1rem;">
+                <input id="edit_name" value="${escapeHtml(v.full_name || '')}" placeholder="Full Name" />
+                <input id="edit_email" value="${escapeHtml(v.email || '')}" placeholder="Email" />
+                <input id="edit_dob" type="date" value="${escapeHtml(v.dob || '')}" placeholder="DOB" />
+                <input id="edit_mobile" value="${escapeHtml(v.mobile || '')}" placeholder="Mobile" />
+                <textarea id="edit_address" rows="2" placeholder="Address">${escapeHtml(v.address || '')}</textarea>
+                <input id="edit_password" type="password" placeholder="New Password (leave blank to keep)" />
+            </div>
+        `;
+      modal.classList.add('active');
+    };
 
-      // client-side age check (DOB format YYYY-MM-DD)
-      const dobDate = new Date(dob + "T00:00:00Z");
-      if (isNaN(dobDate.getTime())) { alert('Invalid DOB'); return; }
-      const ageDifMs = Date.now() - dobDate.getTime();
-      const ageDate = new Date(ageDifMs);
-      const age = Math.abs(ageDate.getUTCFullYear() - 1970);
-      if (age < 18) { alert('Voter must be 18+'); return; }
+    document.getElementById('modalCloseBtn').onclick = () => modal.classList.remove('active');
 
-      // basic mobile sanitization (digits + +)
-      if (mobile && !/^\+?[0-9]{7,15}$/.test(mobile)) {
-        alert('Invalid mobile number (digits only, optional +, 7-15 chars)');
-        return;
-      }
-
-      const electionAddress = electionData.address; // existing variable set earlier in page
+    modalSaveBtn.onclick = async () => {
+      // Save Logic
+      if (!currentEditVoterId) return;
 
       const payload = {
-        email,
-        otp,
-        full_name: name,
-        dob, // ISO date YYYY-MM-DD
-        mobile,
-        address,
-        father_name: father,
-        mother_name: mother,
-        election_address: electionAddress
+        full_name: document.getElementById('edit_name').value,
+        email: document.getElementById('edit_email').value,
+        dob: document.getElementById('edit_dob').value,
+        mobile: document.getElementById('edit_mobile').value,
+        address: document.getElementById('edit_address').value,
+        password: document.getElementById('edit_password').value
       };
 
-      // NEW: call verify-otp-register endpoint (server validates OTP, creates voter, emails password)
-      const response = await fetch('/api/voters/verify-otp-register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      // clean empty
+      Object.keys(payload).forEach(k => !payload[k] && delete payload[k]);
 
-      const result = await safeJson(response);
-      const ok = response.ok || result?.status === 'success' || result?.success === true;
-      if (ok) {
-        alert(result?.message || 'Voter registered. Password emailed.');
-        document.getElementById('registerVoterForm').reset();
-        await loadVoters(electionData.address);
-      } else {
-        throw new Error(result?.message || `Failed to register voter (${response.status})`);
-      }
-    } catch (err) {
-      console.error('Error registering voter:', err);
-      alert('Error: ' + (err.message || 'Unknown error'));
-    } finally {
-      btn.disabled = false; btn.classList.remove('opacity-60');
+      UI.showLoader('Updating...');
+      try {
+        const resp = await fetch(`/api/voters/${encodeURIComponent(currentEditVoterId)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+          UI.toast('Voter Updated', 'success');
+          modal.classList.remove('active');
+          loadVoters();
+        } else {
+          UI.toast('Update Failed', 'error');
+        }
+      } catch (e) { console.error(e); UI.toast('Error updating', 'error'); }
+      finally { UI.hideLoader(); }
+    };
+
+    window.deleteVoter = async (id) => {
+      if (!confirm("Are you sure you want to delete this voter?")) return;
+      UI.showLoader('Deleting...');
+      try {
+        const resp = await fetch(`/api/voters/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (resp.ok) {
+          UI.toast('Voter Deleted', 'success');
+          loadVoters();
+        } else {
+          UI.toast('Delete Failed', 'error');
+        }
+      } catch (e) { console.error(e); UI.toast('Error deleting', 'error'); }
+      finally { UI.hideLoader(); }
+    };
+
+    // --- Register Logic ---
+    document.getElementById('sendOtpBtn').onclick = async () => {
+      const email = document.getElementById('register_voter_email').value;
+      const addr = getElectionAddress();
+      if (!email) return UI.toast('Enter email first', 'warning');
+
+      UI.showLoader('Sending OTP...');
+      try {
+        const resp = await fetch('/api/voters/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, election_address: addr })
+        });
+        const json = await safeJson(resp);
+        if (resp.ok) UI.toast(json?.message || 'OTP Sent', 'success');
+        else UI.toast(json?.message || 'Failed to send OTP', 'error');
+      } catch (e) { UI.toast('Error sending OTP', 'error'); }
+      finally { UI.hideLoader(); }
+    };
+
+    document.getElementById('registerVoterForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const payload = {
+        email: document.getElementById('register_voter_email').value,
+        otp: document.getElementById('register_voter_otp').value,
+        full_name: document.getElementById('register_voter_name').value,
+        dob: document.getElementById('register_voter_dob').value,
+        mobile: document.getElementById('register_voter_mobile').value,
+        address: document.getElementById('register_voter_address').value,
+        father_name: document.getElementById('register_voter_father').value,
+        mother_name: document.getElementById('register_voter_mother').value,
+        election_address: getElectionAddress()
+      };
+
+      if (!payload.otp) return UI.toast('OTP is required', 'warning');
+
+      // Age check
+      const dobDate = new Date(payload.dob);
+      const age = new Date(Date.now() - dobDate.getTime()).getUTCFullYear() - 1970;
+      if (age < 18) return UI.toast('Voter must be 18+', 'error');
+
+      UI.showLoader('Verifying & Registering...');
+      try {
+        const resp = await fetch('/api/voters/verify-otp-register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const json = await safeJson(resp);
+        if (resp.ok) {
+          UI.toast('Voter Registered & Password Emailed', 'success');
+          document.getElementById('registerVoterForm').reset();
+          loadVoters();
+        } else {
+          UI.toast(json?.message || 'Registration Failed', 'error');
+        }
+      } catch (e) { UI.toast('Error registering', 'error'); }
+      finally { UI.hideLoader(); }
+    };
+
+    // --- Nav ---
+    function navTo(page) {
+      const addr = getElectionAddress();
+      const q = addr ? `?address=${encodeURIComponent(addr)}` : '';
+      window.location.href = `${page}${q}`;
     }
-  }
+    document.getElementById('dashboardBtn').onclick = () => navTo('company_dashboard.html');
+    document.getElementById('candidatesBtn').onclick = () => navTo('candidate_list.html');
+    document.getElementById('votersBtn').onclick = () => navTo('voting_list.html');
+    document.getElementById('createBtn').addEventListener('click', () => window.location.href = 'create_election.html');
+    document.getElementById('logoutBtn').onclick = () => {
+      Cookies.remove('address'); Cookies.remove('company_email');
+      window.location.href = 'homepage.html';
+    };
 
-  // Utilities
-  function escapeHtml(text) {
-    return String(text || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
+    // --- Init ---
+    loadVoters();
 
-  function shorten(text, maxLen) {
-    if (!text) return '';
-    return text.length > maxLen ? text.slice(0, maxLen - 1) + '…' : text;
-  }
-
-  function navigateTo(page) {
-    const electionAddress = getElectionAddress();
-    const encoded = electionAddress ? `?address=${encodeURIComponent(electionAddress)}` : '';
-    window.location.href = `${page}.html${encoded}`;
-  }
-
-  function signOut() {
-    Cookies.remove('address');
-    Cookies.remove('company_email');
-    Cookies.remove('company_id');
-    alert('Logging out.');
-    window.location.href = 'homepage.html';
-  }
-</script>
-
+  </script>
 </body>
+
 </html>

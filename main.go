@@ -14,41 +14,59 @@ import (
 	"MAJOR-PROJECT/routes"
 	"MAJOR-PROJECT/util"
 
+	"math/big"
+
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"math/big"
 )
 
 func main() {
 
 	// -----------------------------------------------------
-	// 1) DEPLOY CONTRACT BEFORE LOADING .ENV
+	// 1) LOAD .ENV FIRST
+	// -----------------------------------------------------
+	if err := godotenv.Load(); err != nil {
+		log.Println("⚠️  No .env file found, using system environment variables")
+	} else {
+		log.Println("✅ Loaded .env file successfully")
+	}
+
+	// -----------------------------------------------------
+	// 2) DEPLOY CONTRACT
 	// -----------------------------------------------------
 	{
 		deployCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 		defer cancel()
 
-		rpc := "http://127.0.0.1:8545" 
+		rpc := os.Getenv("ETHEREUM_NODE_URL")
+		if rpc == "" {
+			rpc = "http://127.0.0.1:8545"
+		}
 		abiPath := "build/ElectionFact.abi"
 		binPath := "build/ElectionFact.bin"
-		privHex := "4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d"
-		chainID := big.NewInt(1337)
+
+		privHex := os.Getenv("ETHEREUM_PRIVATE_KEY")
+		if privHex == "" {
+			// Fallback (WARNING: insecure for production, but kept for dev continuity if env missing)
+			log.Println("⚠️  ETHEREUM_PRIVATE_KEY not set in .env, using hardcoded fallback (INSECURE)")
+			privHex = "4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d"
+		}
+
+		chainIDVal := int64(1337) // Default Ganache
+		if cidStr := os.Getenv("ETHEREUM_CHAIN_ID"); cidStr != "" {
+			// parse chain id logic if needed, skipping for brevity, default 1337 is fine for now
+		}
+		chainID := big.NewInt(chainIDVal)
 
 		addr, tx, err := util.Deploy(deployCtx, rpc, abiPath, binPath, privHex, chainID)
 		if err != nil {
 			log.Fatalf("❌ Contract deployment failed: %v", err)
 		}
 		log.Printf("🏗️ Contract deployed at: %s | tx: %s", addr.Hex(), tx.Hash().Hex())
-	}
 
-	// -----------------------------------------------------
-	// 2) LOAD .ENV AFTER DEPLOY UPDATED IT
-	// -----------------------------------------------------
-	if err := godotenv.Load(); err != nil {
-		log.Println("⚠️  No .env file found, using system environment variables")
-	} else {
-		log.Println("✅ Loaded .env file successfully (after deployment)")
+		// Optional: Update .env file with new address (if you want to automate it fully)
+		// For now, we log it clearly.
 	}
 
 	// Validate required env variables

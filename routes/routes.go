@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"MAJOR-PROJECT/controllers"
+	"MAJOR-PROJECT/middleware"
+
 	"github.com/gorilla/mux"
 )
 
@@ -24,7 +26,9 @@ func corsMiddleware(next http.Handler) http.Handler {
 func SetupRoutes() *mux.Router {
 	router := mux.NewRouter()
 	api := router.PathPrefix("/api/").Subrouter()
+	api.Use(middleware.RecoveryMiddleware) // Global panic recovery
 	api.Use(corsMiddleware)
+	api.Use(middleware.RateLimitMiddleware)
 
 	// ----------------------------
 	// COMPANY ROUTES
@@ -50,13 +54,17 @@ func SetupRoutes() *mux.Router {
 	// VOTER ROUTES
 	// ----------------------------
 	api.HandleFunc("/voters/register", controllers.RegisterVoter).Methods(http.MethodPost, http.MethodOptions)
-	api.HandleFunc("/voters/send-otp", controllers.SendOTP).Methods(http.MethodPost, http.MethodOptions)                    // NEW
+	api.HandleFunc("/voters/send-otp", controllers.SendOTP).Methods(http.MethodPost, http.MethodOptions)                         // NEW
 	api.HandleFunc("/voters/verify-otp-register", controllers.VerifyOTPAndRegister).Methods(http.MethodPost, http.MethodOptions) // NEW
 	api.HandleFunc("/voter/authenticate", controllers.AuthenticateVoter).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters", controllers.GetAllVoters).Methods(http.MethodGet, http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters/{voterId}", controllers.UpdateVoter).Methods(http.MethodPut, http.MethodOptions)
 	api.HandleFunc("/voters/{voterId}", controllers.DeleteVoter).Methods(http.MethodDelete, http.MethodOptions)
 	api.HandleFunc("/voter/resultMail", controllers.ResultMail).Methods(http.MethodPost, http.MethodOptions)
+	// ----------------------------
+	// UPLOAD ROUTES
+	// ----------------------------
+	api.HandleFunc("/upload/cloudinary", controllers.UploadToCloudinary).Methods(http.MethodPost, http.MethodOptions)
 
 	// ----------------------------
 	// STATIC FILE SERVING
@@ -67,6 +75,11 @@ func SetupRoutes() *mux.Router {
 	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("404 - %s %s", r.Method, r.URL.Path)
 		http.NotFound(w, r)
+	})
+
+	// Favicon handler to avoid 404 noise
+	router.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
 	})
 
 	return router

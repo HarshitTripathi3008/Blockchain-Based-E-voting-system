@@ -1,95 +1,92 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Create Election</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+  <title>Create Election - BlockVotes</title>
+  <link rel="stylesheet" href="/static/css/global.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
+    rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+  <script src="/static/js/ui.js"></script>
   <style>
-    /* small compatibility for the note box used previously */
-    .note-box { background: #fff; border-left: 4px solid #3b82f6; padding: .75rem 1rem; border-radius: .375rem; }
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .create-card {
+      max-width: 600px;
+      width: 100%;
+    }
   </style>
 </head>
-<body class="bg-gray-50 min-h-screen flex items-center justify-center">
-  <div class="w-full max-w-md mx-4">
-    <div class="bg-white p-8 rounded-lg shadow-md text-center">
-      <img src="../static/logo3.png" alt="Logo" class="w-20 mx-auto mb-4" />
-      <h2 class="text-2xl font-bold text-gray-900 mb-2">Create an election!</h2>
-      <p class="text-sm text-gray-600 mb-4">Election creation may take several minutes. Keep this page open.</p>
 
-      <!-- Error message (kept from original) -->
-      <div id="errorMessage" class="error-message text-red-600 text-sm mb-4 px-3 py-2 rounded hidden" role="alert"></div>
-
-      <form id="createElectionForm" class="space-y-4" novalidate>
-        <div>
-          <label for="electionName" class="sr-only">Election Name</label>
-          <input id="electionName" name="electionName" type="text" required
-                 class="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-                 placeholder="Election Name" />
-        </div>
-
-        <div>
-          <label for="electionDescription" class="sr-only">Election Description</label>
-          <textarea id="electionDescription" name="electionDescription" required
-                    class="w-full px-4 py-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    placeholder="Short election description" rows="4"></textarea>
-        </div>
-
-        <div>
-          <button id="submitButton" type="submit"
-                  class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded">
-            Create Election
-          </button>
-        </div>
-
-        <div class="note-box mt-2 text-left text-sm text-gray-700">
-          <strong class="text-blue-600">Note:</strong> Election creation will take several minutes.
-        </div>
-      </form>
+<body>
+  <div class="glass-card create-card fade-in">
+    <div style="text-align: center;">
+      <img src="/static/logo3.png" alt="Logo" style="width: 80px; margin-bottom: 1rem;" />
+      <h2 style="margin-bottom: 0.5rem;">Create New Election</h2>
+      <p style="color: var(--text-muted); margin-bottom: 2rem;">Deploying a new election contract to the blockchain.</p>
     </div>
+
+    <form id="createElectionForm" novalidate>
+      <div style="margin-bottom: 1.5rem;">
+        <input id="electionName" name="electionName" type="text" required
+          placeholder="Election Name (e.g., 'Student Council 2026')" />
+      </div>
+
+      <div style="margin-bottom: 2rem;">
+        <textarea id="electionDescription" name="electionDescription" required
+          placeholder="Brief description of the election..." rows="4"></textarea>
+      </div>
+
+      <button id="submitButton" type="submit" class="btn btn-primary" style="width: 100%;">Create Election</button>
+
+      <div
+        style="margin-top: 1.5rem; padding: 1rem; background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius: 4px; font-size: 0.9rem;">
+        <strong style="color: #60a5fa;">Note:</strong> This process interacts with the blockchain and may take 15-30
+        seconds. Please do not close the window.
+      </div>
+    </form>
   </div>
 
   <script>
-    // preserve original createElection logic, cookies check and robust error handling
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       const form = document.getElementById('createElectionForm');
-      const errorMessage = document.getElementById('errorMessage');
       const submitButton = document.getElementById('submitButton');
       const electionName = document.getElementById('electionName');
       const electionDescription = document.getElementById('electionDescription');
 
-      // If no company_email found, redirect to login immediately
       const companyEmail = Cookies.get('company_email');
       if (!companyEmail) {
-        alert('Please login to create an election.');
+        UI.toast('Please login to create an election.', 'error');
         window.location.href = 'company_login.html';
         return;
       }
 
-      form.addEventListener('submit', async function(event) {
+      form.addEventListener('submit', async function (event) {
         event.preventDefault();
         await createElection();
       });
 
       async function createElection() {
-        // Reset error message
-        errorMessage.style.display = 'none';
-        errorMessage.textContent = '';
-        submitButton.classList.add('opacity-60', 'cursor-not-allowed');
         submitButton.disabled = true;
+        submitButton.style.opacity = 0.6;
+        UI.showLoader('Deploying Election Contract...');
 
         try {
-          // Validate form inputs
           const name = electionName.value.trim();
           const description = electionDescription.value.trim();
           if (!name || !description) {
             throw new Error('Please fill in all fields.');
           }
 
-          // Use AbortController to timeout the request
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 15000); // 15s
+          const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout for blockchain
 
           const payload = {
             company_email: companyEmail,
@@ -99,60 +96,38 @@
 
           const response = await fetch('/api/elections/create', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify(payload),
             signal: controller.signal
           });
 
           clearTimeout(timeout);
 
-          // Try parse JSON safely
           let result = null;
-          try {
-            result = await response.json();
-          } catch (err) {
-            // Non-JSON response
-            if (!response.ok) {
-              throw new Error(`Server error: ${response.status}`);
-            } else {
-              throw new Error('Unexpected server response');
-            }
-          }
+          try { result = await response.json(); } catch (err) { throw new Error('Server returned invalid response'); }
 
-          const okStatus = (result && (result.success === true || result.status === 'success' || response.ok));
-
-          if (okStatus && result.election_address) {
-            // Set cookie with a reasonable expiry and path
-            console.log('storing election address cookie:', result.election_address);
+          if (response.ok && (result.success === true || result.status === 'success') && result.election_address) {
             Cookies.set('address', result.election_address, { expires: 1, path: '/' });
-
-            // Navigate using encoded address
-            const encoded = encodeURIComponent(result.election_address);
-            window.location.href = `company_dashboard.html?address=${encoded}`;
+            UI.toast('Election created successfully!', 'success');
+            setTimeout(() => {
+              window.location.href = `company_dashboard.html?address=${encodeURIComponent(result.election_address)}`;
+            }, 1000);
             return;
           }
 
-          // Show error returned by server if present
-          const message = result && (result.message || result.error) ? (result.message || result.error) : 'Failed to create election';
-          throw new Error(message);
+          throw new Error(result.message || result.error || 'Failed to create election');
 
         } catch (error) {
-          if (error.name === 'AbortError') {
-            errorMessage.textContent = 'Request timed out. Please try again.';
-          } else {
-            errorMessage.textContent = error.message || 'An error occurred';
-          }
-          errorMessage.style.display = 'block';
           console.error('Election creation error:', error);
+          UI.toast(error.message || 'An error occurred', 'error');
         } finally {
-          submitButton.classList.remove('opacity-60', 'cursor-not-allowed');
           submitButton.disabled = false;
+          submitButton.style.opacity = 1;
+          UI.hideLoader();
         }
       }
     });
   </script>
 </body>
+
 </html>

@@ -1,34 +1,180 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Voter Login</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
-</head>
-<body class="bg-gradient-to-b from-green-200 to-green-50 min-h-screen flex items-center justify-center">
-  <div class="bg-white p-8 rounded shadow-lg w-full max-w-md text-center">
-    <img src="../static/logo3.png" alt="Logo" class="w-24 mx-auto mb-4" />
-    <h2 class="text-2xl font-bold mb-4 text-green-700">Voter Login</h2>
 
-    <form id="voterLoginForm" class="space-y-4" novalidate>
-      <div id="formError" class="text-red-600 text-sm" style="display:none;"></div>
-      <input type="email" id="voterEmail" required placeholder="Email" class="w-full px-4 py-2 border rounded" autocomplete="username"/>
-      <input type="password" id="voterPassword" required placeholder="Password" class="w-full px-4 py-2 border rounded" autocomplete="current-password"/>
-      <button type="submit" id="voterLoginBtn" class="w-full bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700">Login</button>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Voter Login - BlockVotes</title>
+  <link rel="stylesheet" href="/static/css/global.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
+    rel="stylesheet">
+  <script src="/static/js/ui.js"></script>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .login-card {
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="glass-card login-card fade-in">
+    <img src="/static/logo3.png" alt="Logo" style="width: 80px; margin-bottom: 1.5rem;" />
+    <h2 id="formTitle" style="margin-bottom: 2rem; color: var(--success-color);">Voter Portal</h2>
+
+    <!-- Toggle Buttons -->
+    <div style="display: flex; justify-content: center; gap: 1rem; margin-bottom: 1.5rem;">
+      <button id="showLoginBtn" class="btn btn-outline active" style="font-size: 0.9rem;">Login</button>
+      <button id="showRegisterBtn" class="btn btn-outline" style="font-size: 0.9rem;">Register</button>
+    </div>
+
+    <!-- Login Form -->
+    <form id="voterLoginForm" novalidate>
+      <div style="margin-bottom: 1.5rem;">
+        <input type="email" id="voterEmail" required placeholder="Voter ID (Email)" autocomplete="username" />
+      </div>
+      <div style="margin-bottom: 2rem;">
+        <input type="password" id="voterPassword" required placeholder="Password" autocomplete="current-password" />
+      </div>
+      <button type="submit" id="voterLoginBtn" class="btn btn-primary"
+        style="width: 100%; background: var(--success-color);">Secure Login</button>
     </form>
+
+    <!-- Register Form (Hidden by default) -->
+    <form id="voterRegisterForm" style="display: none;" novalidate>
+      <div id="regStep1">
+        <div style="margin-bottom: 1rem;">
+          <input type="email" id="regEmail" required placeholder="Enter Email" />
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <input type="text" id="regElectionAddr" placeholder="Election Address (Optional)" />
+        </div>
+        <button type="button" id="sendOtpBtn" class="btn btn-primary" style="width: 100%;">Send OTP</button>
+      </div>
+
+      <div id="regStep2" style="display: none;">
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">OTP sent to your email.</p>
+        <div style="margin-bottom: 1rem;">
+          <input type="text" id="regOtp" placeholder="Enter 6-digit OTP" required />
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <input type="text" id="regName" placeholder="Full Name" required />
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <input type="date" id="regDob" required />
+          <small style="color: var(--text-muted);">Date of Birth (18+)</small>
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <input type="tel" id="regMobile" placeholder="Mobile Number" />
+        </div>
+        <button type="submit" id="registerBtn" class="btn btn-primary"
+          style="width: 100%; background: var(--accent-color);">Verify & Register</button>
+      </div>
+    </form>
+
   </div>
 
   <script>
-    function showError(msg) {
-      const el = document.getElementById('formError');
-      el.textContent = msg || '';
-      el.style.display = msg ? 'block' : 'none';
-    }
-
     async function safeJson(resp) {
       try { return await resp.json(); } catch { return null; }
     }
+
+    // Toggle Logic
+    const loginForm = document.getElementById('voterLoginForm');
+    const registerForm = document.getElementById('voterRegisterForm');
+    const showLoginBtn = document.getElementById('showLoginBtn');
+    const showRegisterBtn = document.getElementById('showRegisterBtn');
+    const formTitle = document.getElementById('formTitle');
+
+    showLoginBtn.addEventListener('click', () => {
+      loginForm.style.display = 'block';
+      registerForm.style.display = 'none';
+      showLoginBtn.classList.add('active');
+      showRegisterBtn.classList.remove('active');
+      formTitle.textContent = "Voter Portal";
+    });
+
+    showRegisterBtn.addEventListener('click', () => {
+      loginForm.style.display = 'none';
+      registerForm.style.display = 'block';
+      showRegisterBtn.classList.add('active');
+      showLoginBtn.classList.remove('active');
+      formTitle.textContent = "Voter Registration";
+    });
+
+    // Registration Logic
+    document.getElementById('sendOtpBtn').addEventListener('click', async () => {
+      const email = document.getElementById('regEmail').value.trim();
+      const electionAddr = document.getElementById('regElectionAddr').value.trim();
+      if (!email) return UI.toast('Email is required', 'error');
+
+      UI.showLoader('Sending OTP...');
+      try {
+        const resp = await fetch('/api/voters/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, election_address: electionAddr })
+        });
+        const json = await safeJson(resp);
+        if (resp.ok) {
+          UI.toast('OTP Sent!', 'success');
+          document.getElementById('regStep1').style.display = 'none';
+          document.getElementById('regStep2').style.display = 'block';
+        } else {
+          UI.toast(json?.message || 'Failed to send OTP', 'error');
+        }
+      } catch (err) {
+        console.error(err);
+        UI.toast('Network error', 'error');
+      } finally {
+        UI.hideLoader();
+      }
+    });
+
+    document.getElementById('voterRegisterForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('regEmail').value.trim();
+      const otp = document.getElementById('regOtp').value.trim();
+      const name = document.getElementById('regName').value.trim();
+      const dob = document.getElementById('regDob').value;
+      const mobile = document.getElementById('regMobile').value.trim();
+      const electionAddr = document.getElementById('regElectionAddr').value.trim();
+
+      if (!email || !otp || !name || !dob) return UI.toast('Please fill all required fields', 'error');
+
+      UI.showLoader('Registering...');
+      try {
+        const resp = await fetch('/api/voters/verify-otp-register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email, otp, full_name: name, dob, mobile, election_address: electionAddr
+          })
+        });
+        const json = await safeJson(resp);
+        if (resp.ok) {
+          UI.toast('Registration Successful! check email for password', 'success');
+          // Switch to login
+          setTimeout(() => showLoginBtn.click(), 2000);
+        } else {
+          UI.toast(json?.message || 'Registration failed', 'error');
+        }
+      } catch (err) {
+        console.error(err);
+        UI.toast('Network error', 'error');
+      } finally {
+        UI.hideLoader();
+      }
+    });
+
 
     // Placeholder kept for compatibility with other pages
     async function checkElectionOnBlockchain(email) {
@@ -36,7 +182,7 @@
         setTimeout(() => {
           const hasElection = Math.random() > 0.5;
           if (hasElection) {
-            resolve({ address: '0x' + Math.random().toString(16).slice(2,42), status: 'Election exists' });
+            resolve({ address: '0x' + Math.random().toString(16).slice(2, 42), status: 'Election exists' });
           } else {
             resolve({ status: 'Create an election.' });
           }
@@ -46,22 +192,22 @@
 
     document.getElementById('voterLoginForm').addEventListener('submit', async function (e) {
       e.preventDefault();
-      showError('');
+
       const email = (document.getElementById('voterEmail').value || '').trim();
       const password = (document.getElementById('voterPassword').value || '');
       const btn = document.getElementById('voterLoginBtn');
 
       if (!email || !password) {
-        showError('Please enter both email and password.');
+        UI.toast('Please enter both email and password.', 'error');
         return;
       }
 
       if (!/^\S+@\S+\.\S+$/.test(email)) {
-        showError('Please enter a valid email address.');
+        UI.toast('Please enter a valid email address.', 'error');
         return;
       }
 
-      if (btn) { btn.disabled = true; btn.classList.add('opacity-70'); }
+      if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; UI.showLoader('Verifying Identity...'); }
 
       try {
         const resp = await fetch('/api/voter/authenticate', {
@@ -96,22 +242,22 @@
           // fallback plain vote page
           window.location.href = 'vote.html';
           return;
+        } else {
+          UI.toast(json?.message || "Login failed", 'error');
         }
 
-        // backend failed — fallback to local dev flow
-        console.warn('Voter auth failed or backend unavailable', resp.status);
-        localStorage.setItem('voterEmail', email);
-        window.location.href = 'vote.html';
       } catch (err) {
         console.error('Voter login error', err);
-        showError('Network error. Please try again.');
+        UI.toast('Network error. using local fallback.', 'error');
         // local fallback for dev
         localStorage.setItem('voterEmail', email);
         window.location.href = 'vote.html';
       } finally {
-        if (btn) { btn.disabled = false; btn.classList.remove('opacity-70'); }
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; UI.hideLoader(); }
       }
     });
   </script>
 </body>
+
+
 </html>

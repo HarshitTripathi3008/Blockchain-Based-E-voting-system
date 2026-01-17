@@ -1,43 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Company Login</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
-</head>
-<body class="bg-gradient-to-b from-blue-200 to-blue-50 min-h-screen flex items-center justify-center">
-  <div class="bg-white p-8 rounded shadow-lg w-full max-w-md text-center">
-    <img src="../static/logo3.png" alt="Logo" class="w-24 mx-auto mb-4" />
-    <h2 class="text-2xl font-bold mb-4 text-blue-700">Election Commission Login</h2>
 
-    <form id="companyLoginForm" class="space-y-4" novalidate>
-      <div id="formError" class="text-red-600 text-sm" style="display:none;"></div>
-      <input type="email" id="companyEmail" required placeholder="Email" class="w-full px-4 py-2 border rounded" />
-      <input type="password" id="companyPassword" required placeholder="Password" class="w-full px-4 py-2 border rounded" />
-      <button type="submit" id="companyLoginBtn" class="w-full bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700">Login</button>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Election Commission Login - BlockVotes</title>
+  <link rel="stylesheet" href="/static/css/global.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
+    rel="stylesheet">
+  <script src="/static/js/ui.js"></script>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .login-card {
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="glass-card login-card fade-in">
+    <img src="/static/logo3.png" alt="Logo" style="width: 80px; margin-bottom: 1.5rem;" />
+    <h2 style="margin-bottom: 2rem; color: var(--primary-color);">Election Commission</h2>
+
+    <form id="companyLoginForm" novalidate>
+      <div style="margin-bottom: 1.5rem;">
+        <input type="email" id="companyEmail" required placeholder="Admin Email" autocomplete="username" />
+      </div>
+      <div style="margin-bottom: 2rem;">
+        <input type="password" id="companyPassword" required placeholder="Password" autocomplete="current-password" />
+      </div>
+      <button type="submit" id="companyLoginBtn" class="btn btn-primary" style="width: 100%;">Secure Login</button>
     </form>
 
-    <div class="mt-4 text-sm text-gray-600">
-      <!--<a href="create_election.html" class="text-blue-600 hover:underline">Create Election</a>-->
-      <br />
-      <!-- ✅ Changed: Create Admin now calls signup() -->
-      <!--<button onclick="handleAdminSignup()" class="text-blue-600 hover:underline">Create Admin</button>-->
+    <div style="margin-top: 1.5rem; font-size: 0.9rem;">
+      <button id="createAdminBtn"
+        style="background: none; border: none; color: var(--text-muted); cursor: pointer; text-decoration: underline;">
+        
+      </button>
     </div>
+
   </div>
 
   <script>
-    // Helper: show inline error
+    // helper to show toast error via UI.js
     function showError(msg) {
-      const el = document.getElementById('formError');
-      el.textContent = msg || '';
-      el.style.display = msg ? 'block' : 'none';
+      UI.toast(msg, 'error');
     }
 
-    // Primary login handler: try backend authenticate, fallback to localStorage fake flow
     document.getElementById('companyLoginForm').addEventListener('submit', async function (e) {
       e.preventDefault();
-      showError('');
+
       const email = (document.getElementById('companyEmail').value || '').trim();
       const password = (document.getElementById('companyPassword').value || '');
       const btn = document.getElementById('companyLoginBtn');
@@ -47,17 +67,14 @@
         return;
       }
 
-      // basic email format check
       if (!/^\S+@\S+\.\S+$/.test(email)) {
         showError('Please enter a valid email address.');
         return;
       }
 
-      // optimistic UI lock
-      if (btn) { btn.disabled = true; btn.classList.add('opacity-70'); }
+      if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; UI.showLoader('Verifying Credentials...'); }
 
       try {
-        // Try to authenticate with backend
         const resp = await fetch('/api/company/authenticate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -72,7 +89,6 @@
           if (data?.id) document.cookie = "company_id=" + encodeURIComponent(data.id) + "; path=/";
           document.cookie = "company_email=" + encodeURIComponent(email) + "; path=/";
 
-          // If backend returns election_address use it
           const electionAddress = data?.election_address || json?.election_address;
           if (electionAddress) {
             document.cookie = "address=" + encodeURIComponent(electionAddress) + "; path=/";
@@ -80,7 +96,6 @@
             return;
           }
 
-          // No election address returned from backend — use fallback check
           const electionData = await checkElectionOnBlockchain(email);
           if (electionData && electionData.address) {
             document.cookie = "address=" + encodeURIComponent(electionData.address) + "; path=/";
@@ -91,79 +106,53 @@
           return;
         }
 
-        // Backend auth failed — fallback to local development behavior
-        console.warn('Backend auth failed or not available, falling back to local flow', resp.status);
-        localStorage.setItem('companyEmail', email);
-        if (!localStorage.getItem('companyElectionAddress')) {
-          window.location.href = 'create_election.html';
-        } else {
-          const addr = localStorage.getItem('companyElectionAddress');
-          window.location.href = `company_dashboard.html?address=${encodeURIComponent(addr)}`;
-        }
+        console.warn('Backend auth failed', resp.status);
+        showError('Login failed. Please check credentials.');
 
       } catch (err) {
-        console.error('Login request failed, falling back to local flow', err);
-        showError('Network error. Using local fallback.');
-        // Fallback local flow for development
-        localStorage.setItem('companyEmail', email);
-        if (!localStorage.getItem('companyElectionAddress')) {
-          window.location.href = 'create_election.html';
-        } else {
-          const addr = localStorage.getItem('companyElectionAddress');
-          window.location.href = `company_dashboard.html?address=${encodeURIComponent(addr)}`;
-        }
+        console.error('Login request failed', err);
+        showError('Network error. Please try again.');
       } finally {
-        if (btn) { btn.disabled = false; btn.classList.remove('opacity-70'); }
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; UI.hideLoader(); }
       }
     });
 
-    // ✅ Added: use signup() for Create Admin
-    async function handleAdminSignup() {
-      const email = prompt("Enter admin email:");
-      const password = prompt("Enter admin password:");
-      if (!email || !password) {
-        alert("Email and password required.");
-        return;
-      }
+    document.getElementById('createAdminBtn').addEventListener('click', async () => {
+      const email = prompt("Enter new admin email:");
+      if (!email) return;
+      const password = prompt("Enter new admin password:");
+      if (!password) return;
 
-      try {
-        const result = await signup(email, password);
-        if (result?.status === 'success' || result?.success === true) {
-          alert("Admin created successfully!");
-        } else {
-          alert("Failed to create admin: " + (result?.message || "Unknown error"));
-        }
-      } catch (err) {
-        console.error("Admin signup error:", err);
-        alert("Error creating admin.");
-      }
-    }
-
-    // Preserve helper functions for compatibility
-    async function signup(email, password) {
-      if (!email || !password) throw new Error('email/password required');
+      UI.showLoader('Creating Admin...');
       try {
         const resp = await fetch('/api/company/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({ email, password })
         });
-        const json = await resp.json().catch(()=>null);
-        return json;
-      } catch (err) {
-        console.error('Signup error', err);
-        throw err;
-      }
-    }
+        const json = await resp.json().catch(() => null);
 
-    // Placeholder blockchain check (kept for compatibility)
+        if (resp.ok && (json?.status === 'success' || json?.success === true)) {
+          UI.toast('Admin created! You can now login.', 'success');
+        } else {
+          UI.toast('Failed: ' + (json?.message || "Unknown error"), 'error');
+        }
+      } catch (err) {
+        console.error(err);
+        UI.toast('Request failed', 'error');
+      } finally {
+        UI.hideLoader();
+      }
+    });
+
+
     async function checkElectionOnBlockchain(email) {
       return new Promise((resolve) => {
         setTimeout(() => {
           const hasElection = Math.random() > 0.5;
           if (hasElection) {
             resolve({
-              address: '0x' + Math.random().toString(16).slice(2,42),
+              address: '0x' + Math.random().toString(16).slice(2, 42),
               status: 'Election exists'
             });
           } else {
@@ -174,4 +163,5 @@
     }
   </script>
 </body>
+
 </html>

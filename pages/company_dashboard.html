@@ -1,67 +1,165 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8"/>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Election Commission Dashboard</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+  <title>Election Commission Dashboard - BlockVotes</title>
+  <link rel="stylesheet" href="/static/css/global.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
+    rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/static/js/ui.js"></script>
   <style>
-    /* minimal compatibility styles kept */
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 250px;
+      background: rgba(23, 23, 33, 0.9);
+      border-right: 1px solid var(--glass-border);
+      padding: 2rem 1rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 2rem;
+      overflow-y: auto;
+    }
+
+    .nav-btn {
+      text-align: left;
+      padding: 1rem;
+      margin-bottom: 0.5rem;
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 1rem;
+      width: 100%;
+      font-family: var(--font-body);
+    }
+
+    .nav-btn:hover,
+    .nav-btn.active {
+      background: rgba(108, 92, 231, 0.1);
+      color: #fff;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      padding: 1.5rem;
+      border-radius: 12px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+    }
+
+    .stat-val {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin-top: 0.5rem;
+    }
+
+    .stat-label {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .chart-container {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      height: 400px;
+      position: relative;
+    }
   </style>
 </head>
-<body class="bg-gray-100 flex min-h-screen">
-  <!-- Sidebar -->
-  <aside class="w-60 h-screen bg-blue-900 text-white flex flex-col pt-10">
-    <img src="../static/logo3.png" alt="Logo" class="w-16 mx-auto mb-6" />
-    <nav class="space-y-2 px-4">
-      <button id="dashboardBtn" class="w-full text-left block px-4 py-2 hover:bg-blue-700 rounded">Dashboard</button>
-      <button id="candidatesBtn" class="w-full text-left block px-4 py-2 hover:bg-blue-700 rounded">Candidate List</button>
-      <button id="votersBtn" class="w-full text-left block px-4 py-2 hover:bg-blue-700 rounded">Voter List</button>
-      <button id="createBtn" class="w-full text-left block px-4 py-2 hover:bg-blue-700 rounded">Create Election</button>
-      <button id="logoutBtn" class="w-full mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 rounded">Logout</button>
-    </nav>
-  </aside>
 
-  <main class="flex-1 p-10">
-    <div class="flex items-center justify-between mb-8">
-      <h2 class="text-3xl font-bold text-blue-900">Election Commission Dashboard</h2>
-      <div class="text-right">
-        <div id="companyEmailDisplay" class="text-gray-700"></div>
-        <div id="electionAddrDisplay" class="text-sm text-gray-500"></div>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div style="text-align: center; margin-bottom: 3rem;">
+        <img src="/static/logo3.png" alt="Logo" style="width: 50px; margin-bottom: 0.5rem;" />
+        <h3 style="margin:0;">BlockVotes</h3>
       </div>
-    </div>
+      <nav style="flex: 1;">
+        <button id="dashboardBtn" class="nav-btn active">Dashboard</button>
+        <button id="candidatesBtn" class="nav-btn">Candidate List</button>
+        <button id="votersBtn" class="nav-btn">Voter List</button>
+        <button id="createBtn" class="nav-btn">Create Election</button>
+      </nav>
+      <button id="logoutBtn" class="nav-btn" style="color: var(--error-color); margin-top: auto;">Logout</button>
+    </aside>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <div class="bg-white p-6 rounded shadow">
-        <div class="text-sm text-gray-500">Total Candidates</div>
-        <div id="candidatesCount" class="text-2xl font-bold text-gray-800">—</div>
+    <main class="main-content">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+        <div>
+          <h2>Election Dashboard</h2>
+          <p style="color: var(--text-muted);">Manage your election processing</p>
+        </div>
+        <div style="text-align: right; font-size: 0.9rem;">
+          <div id="companyEmailDisplay" style="color: #fff; font-weight: 600;"></div>
+          <div id="electionAddrDisplay" style="color: var(--text-muted); font-family: monospace;"></div>
+        </div>
       </div>
-      <div class="bg-white p-6 rounded shadow">
-        <div class="text-sm text-gray-500">Total Voters</div>
-        <div id="votersCount" class="text-2xl font-bold text-gray-800">—</div>
-      </div>
-      <div class="bg-white p-6 rounded shadow">
-        <div class="text-sm text-gray-500">Total Votes</div>
-        <div id="votesCount" class="text-2xl font-bold text-gray-800">—</div>
-      </div>
-    </div>
 
-    <section class="bg-white p-6 rounded shadow mb-6">
-      <h3 class="text-xl font-semibold mb-2">Election Details</h3>
-      <p id="electionName" class="text-gray-800 mb-1">—</p>
-      <p id="electionDesc" class="text-gray-600 text-sm">—</p>
-    </section>
+      <div class="glass-card" style="margin-bottom: 2rem;">
+        <h3 style="margin-bottom: 0.5rem;">Current Election</h3>
+        <h1 id="electionName" style="color: var(--accent-color);">—</h1>
+        <p id="electionDesc" style="color: var(--text-muted); margin-top: 0.5rem;">—</p>
+      </div>
 
-    <div id="actions" class="flex gap-4">
-      <button id="viewCandidates" class="px-5 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">View Candidates</button>
-      <button id="manageVoters" class="px-5 py-2 bg-green-600 text-white rounded hover:bg-green-700">Manage Voters</button>
-      <button id="endElection" class="px-5 py-2 bg-red-500 text-white rounded hover:bg-red-600">End Election (mail)</button>
-    </div>
-  </main>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Candidates</div>
+          <div id="candidatesCount" class="stat-val">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Voters</div>
+          <div id="votersCount" class="stat-val">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Votes Cast</div>
+          <div id="votesCount" class="stat-val">—</div>
+        </div>
+      </div>
+
+      <!-- Chart Section -->
+      <div class="chart-container fade-in">
+        <h3 style="margin-bottom: 1rem;">Live Results</h3>
+        <canvas id="resultsChart"></canvas>
+      </div>
+
+      <div style="display: flex; gap: 1rem;">
+        <button id="viewCandidates" class="btn btn-outline">View Candidates</button>
+        <button id="manageVoters" class="btn btn-outline">Manage Voters</button>
+        <button id="endElection" class="btn" style="background: var(--error-color); color: white; border: none;">End
+          Election & Mail Results</button>
+      </div>
+    </main>
+  </div>
 
   <script>
     // --- utility helpers (safe JSON parsing) ---
+    let resultsChart = null;
+
     async function safeJson(resp) {
       try { return await resp.json(); } catch { return null; }
     }
@@ -78,9 +176,9 @@
     }
 
     function updateHeaderDisplays() {
-      document.getElementById('companyEmailDisplay').textContent = getCompanyEmail() ? `Account: ${getCompanyEmail()}` : '';
+      document.getElementById('companyEmailDisplay').textContent = getCompanyEmail() || '';
       const addr = getElectionAddress();
-      document.getElementById('electionAddrDisplay').textContent = addr ? `Address: ${addr}` : 'No election selected';
+      document.getElementById('electionAddrDisplay').textContent = addr ? `${addr.substr(0, 10)}...${addr.substr(-8)}` : 'No election selected';
     }
 
     // --- load dashboard data (keep original behavior but robust) ---
@@ -88,14 +186,15 @@
       const addr = getElectionAddress();
       if (!addr) {
         document.getElementById('electionName').textContent = 'No election selected';
-        document.getElementById('electionDesc').textContent = '';
+        document.getElementById('electionDesc').textContent = 'Please create an election first.';
         return;
       }
 
+      UI.showLoader('Loading Stats...');
       const encoded = encodeURIComponent(addr);
       try {
         // election details
-        const respDetails = await fetch(`/api/elections/${encoded}/details`, { headers: { 'Accept': 'application/json' }});
+        const respDetails = await fetch(`/api/elections/${encoded}/details`, { headers: { 'Accept': 'application/json' } });
         if (respDetails.ok) {
           const body = await safeJson(respDetails);
           const electionName = body?.data?.election_name || body?.election_name || "Unnamed election";
@@ -104,11 +203,10 @@
           document.getElementById('electionDesc').textContent = electionDesc;
         } else {
           document.getElementById('electionName').textContent = 'Unnamed election';
-          document.getElementById('electionDesc').textContent = '';
         }
 
         // candidates
-        const respCandidates = await fetch(`/api/elections/${encoded}/candidates`, { headers: { 'Accept': 'application/json' }});
+        const respCandidates = await fetch(`/api/elections/${encoded}/candidates`, { headers: { 'Accept': 'application/json' } });
         let candidates = [];
         if (respCandidates.ok) {
           const cbody = await safeJson(respCandidates);
@@ -118,7 +216,7 @@
         document.getElementById('candidatesCount').textContent = String(candidates.length || 0);
 
         // voters
-        const respVoters = await fetch(`/api/elections/${encoded}/voters`, { headers: { 'Accept': 'application/json' }});
+        const respVoters = await fetch(`/api/elections/${encoded}/voters`, { headers: { 'Accept': 'application/json' } });
         let voters = [];
         if (respVoters.ok) {
           const vbody = await safeJson(respVoters);
@@ -133,18 +231,81 @@
         }, 0);
         document.getElementById('votesCount').textContent = String(totalVotes);
 
+        // Render Chart
+        renderChart(candidates);
+
       } catch (err) {
         console.warn('Failed to load dashboard data', err);
+        UI.toast('Failed to load dashboard data', 'error');
+      } finally {
+        UI.hideLoader();
       }
     }
 
-    // --- get winner candidate from candidates list (selects highest votes) ---
-    // returns an object { name, email, voteCount } or null
+    function renderChart(candidates) {
+      const ctx = document.getElementById('resultsChart').getContext('2d');
+      const labels = candidates.map(c => c.name || 'Unknown');
+      const data = candidates.map(c => Number(c.voteCount || c.votes || 0));
+
+      if (resultsChart) {
+        resultsChart.destroy();
+      }
+
+      resultsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '# of Votes',
+            data: data,
+            backgroundColor: [
+              'rgba(108, 92, 231, 0.6)',
+              'rgba(9, 132, 227, 0.6)',
+              'rgba(0, 184, 148, 0.6)',
+              'rgba(253, 203, 110, 0.6)',
+              'rgba(225, 112, 85, 0.6)',
+              'rgba(214, 48, 49, 0.6)'
+            ],
+            borderColor: [
+              'rgba(108, 92, 231, 1)',
+              'rgba(9, 132, 227, 1)',
+              'rgba(0, 184, 148, 1)',
+              'rgba(253, 203, 110, 1)',
+              'rgba(225, 112, 85, 1)',
+              'rgba(214, 48, 49, 1)'
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { color: '#b2bec3' },
+              grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            },
+            x: {
+              ticks: { color: '#b2bec3' },
+              grid: { display: false }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { color: '#dfe6e9' }
+            }
+          }
+        }
+      });
+    }
+
+    // --- get winner from candidates list (selects highest votes) ---
     async function computeWinner(electionAddress) {
       if (!electionAddress) return null;
       const encoded = encodeURIComponent(electionAddress);
       try {
-        const resp = await fetch(`/api/elections/${encoded}/candidates`, { headers: { 'Accept': 'application/json' }});
+        const resp = await fetch(`/api/elections/${encoded}/candidates`, { headers: { 'Accept': 'application/json' } });
         if (!resp.ok) return null;
         const body = await safeJson(resp);
         let candidates = [];
@@ -153,11 +314,9 @@
 
         if (!candidates || candidates.length === 0) return null;
 
-        // determine winner by numeric vote count, fallback to first if no votes available
         let winner = null;
         let maxVotes = -1;
         for (const c of candidates) {
-          // support multiple naming conventions from backend
           const v = Number(c.voteCount || c.votes || c.vote_count || 0);
           const votes = isNaN(v) ? 0 : v;
           if (votes > maxVotes) {
@@ -165,10 +324,8 @@
             winner = c;
           }
         }
-        // if all votes 0 and winner is null, pick candidate[0]
         if (!winner && candidates.length > 0) winner = candidates[0];
 
-        // Normalize winner object: name, email, votes
         if (winner) {
           return {
             name: winner.name || winner.candidate_name || winner.candidate || '(unnamed)',
@@ -183,52 +340,34 @@
       }
     }
 
-    // --- end election handler: compute winner, POST to /api/voter/resultMail with required fields ---
+    // --- end election handler ---
     async function endElectionHandler() {
       const btn = document.getElementById('endElection');
       const addr = getElectionAddress();
-      if (!addr) { alert('No election selected'); return; }
+      if (!addr) { UI.toast('No election selected', 'error'); return; }
       if (!confirm('End election and send result mail to all voters?')) return;
 
       try {
-        // UI lock
         btn.disabled = true;
         btn.textContent = 'Ending election...';
-        btn.classList.add('opacity-60', 'cursor-not-allowed');
+        btn.style.opacity = 0.6;
+        UI.showLoader('Ending Election (Generating Results)...');
 
-        // get election name from page (fallback to prompt)
         let electionName = document.getElementById('electionName')?.textContent || '';
         if (!electionName || electionName.trim() === '' || electionName === 'Unnamed election') {
-          const promptName = prompt('Election name is missing — enter election name to include in the mail (required):');
-          if (!promptName) { throw new Error('Election name required'); }
-          electionName = promptName;
+          electionName = prompt('Enter election name:') || "Election";
         }
 
-        // compute winner from blockchain-backed candidates endpoint
         const winner = await computeWinner(addr);
-        let winnerName = '';
-        let candidateEmail = '';
+        let winnerName = winner?.name || prompt('Enter winner name:');
 
-        if (winner && winner.name) {
-          winnerName = winner.name;
-          candidateEmail = winner.email || '';
-        } else {
-          // fallback: ask admin to enter winner manually (required)
-          const manual = prompt('Could not determine winner automatically. Enter winner candidate name (required):');
-          if (!manual) { throw new Error('Winner candidate required'); }
-          winnerName = manual;
-        }
-
-        // Build payload required by backend: election_address, election_name, winner_candidate
         const payload = {
           election_address: addr,
           election_name: electionName,
           winner_candidate: winnerName
         };
-        // include candidate_email when available
-        if (candidateEmail) payload.candidate_email = candidateEmail;
+        if (winner?.email) payload.candidate_email = winner.email;
 
-        // POST to backend
         const resp = await fetch('/api/voter/resultMail', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -238,24 +377,19 @@
         const json = await safeJson(resp);
 
         if (resp.ok && (json?.status === 'success' || json?.success === true)) {
-          alert('Result emails sent successfully.');
+          UI.toast('Result emails sent successfully!', 'success');
         } else {
-          // server returned error object; show useful message when available
-          const msg = (json && (json.message || json.error)) || `Failed to send mails (${resp.status})`;
-          alert('Error: ' + msg);
+          UI.toast('Error: ' + (json?.message || 'Failed'), 'error');
         }
 
       } catch (err) {
         console.error('endElectionHandler error', err);
-        alert('Failed to end election: ' + (err.message || 'Unknown error'));
+        UI.toast('Failed to end election', 'error');
       } finally {
-        // restore UI
-        const btn = document.getElementById('endElection');
-        if (btn) {
-          btn.disabled = false;
-          btn.textContent = 'End Election (mail)';
-          btn.classList.remove('opacity-60', 'cursor-not-allowed');
-        }
+        btn.disabled = false;
+        btn.textContent = 'End Election (mail)';
+        btn.style.opacity = 1;
+        UI.hideLoader();
       }
     }
 
@@ -271,7 +405,7 @@
     document.getElementById('dashboardBtn').addEventListener('click', () => navTo('company_dashboard.html'));
     document.getElementById('createBtn').addEventListener('click', () => window.location.href = 'create_election.html');
 
-    document.getElementById('logoutBtn').addEventListener('click', function() {
+    document.getElementById('logoutBtn').addEventListener('click', function () {
       localStorage.removeItem('companyElectionAddress');
       localStorage.removeItem('companyEmail');
       Cookies.remove('company_email', { path: '/' });
@@ -281,16 +415,12 @@
 
     document.getElementById('viewCandidates').addEventListener('click', () => navTo('candidate_list.html'));
     document.getElementById('manageVoters').addEventListener('click', () => navTo('voting_list.html'));
-
-    // Attach end election handler (this is the updated, full implementation)
     document.getElementById('endElection').addEventListener('click', endElectionHandler);
 
     // --- init page ---
     updateHeaderDisplays();
     loadDashboard();
-
-    // Optional: refresh stats every 60s
-    setInterval(loadDashboard, 60_000);
   </script>
 </body>
+
 </html>

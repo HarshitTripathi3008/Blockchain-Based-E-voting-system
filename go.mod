@@ -3,11 +3,18 @@ module MAJOR-PROJECT
 go 1.24.4
 
 require (
+	github.com/cloudinary/cloudinary-go/v2 v2.14.0
 	github.com/ethereum/go-ethereum v1.16.5
 	github.com/gorilla/mux v1.8.1
 	github.com/joho/godotenv v1.5.1
 	go.mongodb.org/mongo-driver v1.17.4
 	golang.org/x/crypto v0.43.0
+	golang.org/x/time v0.14.0
+)
+
+require (
+	github.com/creasty/defaults v1.7.0 // indirect
+	github.com/gorilla/schema v1.4.1 // indirect
 )
 
 require (

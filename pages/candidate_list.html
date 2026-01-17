@@ -1,67 +1,161 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Candidate List - E-Voting</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Candidate Management - BlockVotes</title>
+  <link rel="stylesheet" href="/static/css/global.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
+    rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+  <script src="/static/js/ui.js"></script>
   <style>
-    .candidate-card { background: white; padding: 1rem; border-radius: .5rem; box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
-    .candidate-image { width:100%; height:160px; object-fit:cover; border-radius: .375rem; }
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 250px;
+      background: rgba(23, 23, 33, 0.9);
+      border-right: 1px solid var(--glass-border);
+      padding: 2rem 1rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 2rem;
+      overflow-y: auto;
+    }
+
+    .nav-btn {
+      text-align: left;
+      padding: 1rem;
+      margin-bottom: 0.5rem;
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 1rem;
+      width: 100%;
+      font-family: var(--font-body);
+    }
+
+    .nav-btn:hover,
+    .nav-btn.active {
+      background: rgba(108, 92, 231, 0.1);
+      color: #fff;
+    }
+
+    .candidate-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .candidate-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: transform 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .candidate-card:hover {
+      transform: translateY(-5px);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .candidate-img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-bottom: 1rem;
+      background: #2d2d2d;
+    }
+
+    .vote-badge {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: var(--primary-color);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      box-shadow: 0 4px 10px rgba(108, 92, 231, 0.4);
+    }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
-  <div class="max-w-6xl mx-auto p-6">
-    <header class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold">Candidates</h1>
-      <div>
-        <button id="dashboardBtn" class="px-4 py-2 bg-indigo-600 text-white rounded mr-2">Dashboard</button>
-        <button id="votersBtn" class="px-4 py-2 bg-green-600 text-white rounded mr-2">Voters</button>
-        <button id="logoutBtn" class="px-4 py-2 bg-gray-500 text-white rounded">Logout</button>
+
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div style="text-align: center; margin-bottom: 3rem;">
+        <img src="/static/logo3.png" alt="Logo" style="width: 50px; margin-bottom: 0.5rem;" />
+        <h3 style="margin:0;">BlockVotes</h3>
       </div>
-    </header>
+      <nav style="flex: 1;">
+        <button id="dashboardBtn" class="nav-btn">Dashboard</button>
+        <button id="candidatesBtn" class="nav-btn active">Candidate List</button>
+        <button id="votersBtn" class="nav-btn">Voter List</button>
+        <button id="createBtn" class="nav-btn">Create Election</button>
+      </nav>
+      <button id="logoutBtn" class="nav-btn" style="color: var(--error-color); margin-top: auto;">Logout</button>
+    </aside>
 
-    <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div class="candidate-card">
-        <h2 class="text-lg font-semibold mb-3">Register Candidate</h2>
-        <form id="registerCandidateForm" class="space-y-3">
-          <div>
-            <label class="block text-sm font-medium">Name</label>
-            <input id="candName" class="mt-1 block w-full border rounded px-3 py-2" type="text" required />
-          </div>
-          <div>
-            <label class="block text-sm font-medium">Description</label>
-            <textarea id="candDesc" class="mt-1 block w-full border rounded px-3 py-2" rows="3" required></textarea>
-          </div>
-          <div>
-            <label class="block text-sm font-medium">Email</label>
-            <input id="candEmail" class="mt-1 block w-full border rounded px-3 py-2" type="email" required />
+    <main class="main-content">
+      <h2 style="margin-bottom: 2rem;">Candidate Management</h2>
+
+      <div class="glass-card" style="margin-bottom: 2rem;">
+        <h3 style="margin-bottom: 1.5rem; color: var(--accent-color);">Register New Candidate</h3>
+        <form id="registerCandidateForm">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <input id="candName" type="text" required placeholder="Full Name" />
+            <input id="candEmail" type="email" required placeholder="Email Address" />
           </div>
 
-          <!-- Image upload has been removed. UI will use default image for candidates. -->
-
-          <div>
-            <button id="registerBtn" type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded">Register</button>
+          <div style="margin-bottom: 1.5rem;">
+            <textarea id="candDesc" rows="3" required placeholder="Candidate Description / Manifesto"></textarea>
           </div>
+
+          <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">Candidate
+              Image</label>
+            <input id="candImage" type="file" accept="image/*" style="padding: 0.5rem;" />
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Image will be stored
+              continuously on Cloudinary.</p>
+          </div>
+
+          <button id="registerBtn" type="submit" class="btn btn-primary">Register Candidate</button>
         </form>
       </div>
 
-      <div class="md:col-span-2">
-        <h2 class="text-lg font-semibold mb-3">Registered Candidates</h2>
-        <div id="candidatesContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
-        <div id="noCandidates" class="text-gray-600 mt-4 hidden">No candidates yet.</div>
-      </div>
-    </section>
+      <h3 style="margin-bottom: 1rem;">Registered Candidates</h3>
+
+      <div id="noCandidates" style="display:none; color: var(--text-muted); font-style: italic;">No candidates
+        registered yet.</div>
+      <div id="candidatesContainer" class="candidate-grid"></div>
+
+    </main>
   </div>
 
   <script>
-    // Helper: safe JSON parse
     async function safeJson(response) {
       try { return await response.json(); } catch { return null; }
     }
 
-    // Helpers for election address (cookie or query param)
     function getElectionAddress() {
       const fromCookie = Cookies.get('address');
       if (fromCookie) return fromCookie;
@@ -69,88 +163,119 @@
       return params.get('address') || '';
     }
 
-    // Render candidates - uses candidate.imageHash or falls back to default
+    function escapeHtml(text) {
+      return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // Load Candidates
     async function loadCandidates() {
       const address = getElectionAddress();
       if (!address) {
-        alert('No election selected. Redirecting to login.');
-        window.location.href = 'company_login.html';
+        UI.toast('No election selected. Redirecting...', 'error');
+        setTimeout(() => window.location.href = 'company_login.html', 2000);
         return;
       }
 
-      const url = `/api/elections/${encodeURIComponent(address)}/candidates`;
+      UI.showLoader('Loading Candidates...');
       try {
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const res = await fetch(`/api/elections/${encodeURIComponent(address)}/candidates`, { headers: { 'Accept': 'application/json' } });
         if (!res.ok) throw new Error('Failed to load candidates');
+
         const data = await res.json();
         const candidates = Array.isArray(data.candidates) ? data.candidates : (Array.isArray(data) ? data : []);
         const container = document.getElementById('candidatesContainer');
         container.innerHTML = '';
 
         if (!candidates || candidates.length === 0) {
-          document.getElementById('noCandidates').classList.remove('hidden');
-          return;
-        }
-        document.getElementById('noCandidates').classList.add('hidden');
+          document.getElementById('noCandidates').style.display = 'block';
+        } else {
+          document.getElementById('noCandidates').style.display = 'none';
+          candidates.forEach(c => {
+            const imgRef = c.imageHash || c.cid || '';
+            // Check if it's a Cloudinary URL (http) or IPFS CID
+            let imgUrl = '/static/default-candidate.png';
+            if (imgRef.startsWith('http')) {
+              imgUrl = imgRef;
+            } else if (imgRef) {
+              imgUrl = `https://ipfs.io/ipfs/${imgRef}`;
+            }
 
-        for (const c of candidates) {
-          const cid = c.imageHash || c.cid || '';
-          const imgUrl = cid ? `https://ipfs.io/ipfs/${cid}` : './static/default-candidate.png';
-          const name = c.name || 'Unnamed';
-          const desc = c.description || '';
-          const votes = Number(c.votes || c.voteCount || 0);
+            const name = c.name || 'Unnamed';
+            const desc = c.description || '';
+            const votes = Number(c.votes || c.voteCount || 0);
 
-          const card = document.createElement('div');
-          card.className = 'candidate-card';
-          card.innerHTML = `
-            <img src="${imgUrl}" onerror="this.src='./static/default-candidate.png'" alt="${escapeHtml(name)}" class="candidate-image"/>
-            <div class="mt-3 font-semibold text-gray-800">${escapeHtml(name)}</div>
-            <div class="text-gray-600 text-sm mt-2">${escapeHtml(desc)}</div>
-            <div class="mt-3 text-indigo-600 font-bold">${votes} votes</div>
-          `;
-          container.appendChild(card);
+            const card = document.createElement('div');
+            card.className = 'candidate-card fade-in';
+            card.innerHTML = `
+                    <div class="vote-badge">${votes} Votes</div>
+                    <img src="${imgUrl}" onerror="this.src='/static/default-candidate.png'" alt="${escapeHtml(name)}" class="candidate-img"/>
+                    <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; color: #fff;">${escapeHtml(name)}</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; max-height: 100px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(desc)}</p>
+                `;
+            container.appendChild(card);
+          });
         }
       } catch (err) {
         console.error('loadCandidates error', err);
-        alert('Failed to load candidates.');
+        UI.toast('Failed to load candidates.', 'error');
+      } finally {
+        UI.hideLoader();
       }
     }
 
-    // Register candidate: no image upload step, send empty imageHash
+    // Register Candidate with Cloudinary Upload
     async function registerCandidate(event) {
       event.preventDefault();
       const btn = document.getElementById('registerBtn');
+      const fileInput = document.getElementById('candImage');
+
+      const name = document.getElementById('candName').value.trim();
+      const description = document.getElementById('candDesc').value.trim();
+      const email = document.getElementById('candEmail').value.trim();
+      const electionAddress = getElectionAddress();
+
+      if (!name || !description || !email) {
+        UI.toast('Please fill all text fields.', 'warning');
+        return;
+      }
+      if (!electionAddress) {
+        UI.toast('Election address missing.', 'error');
+        return;
+      }
+
       btn.disabled = true;
-      btn.textContent = 'Registering...';
+      btn.style.opacity = 0.6;
+      UI.showLoader('Processing Registration...');
 
       try {
-        const name = document.getElementById('candName').value.trim();
-        const description = document.getElementById('candDesc').value.trim();
-        const email = document.getElementById('candEmail').value.trim();
-        const electionAddress = getElectionAddress();
+        let imageUrl = '';
 
-        if (!name || !description || !email) {
-          alert('Please fill all fields.');
-          return;
+        // 1. Upload Image if present
+        if (fileInput.files.length > 0) {
+          UI.showLoader('Uploading Image to Cloudinary...');
+          const fd = new FormData();
+          fd.append('file', fileInput.files[0]);
+
+          const uploadResp = await fetch('/api/upload/cloudinary', { method: 'POST', body: fd });
+          const uploadJson = await uploadResp.json();
+
+          if (!uploadResp.ok || (uploadJson.status !== 'success' && uploadJson.status !== true)) { // check generic status
+            // sometimes API returns success:true
+            if (!uploadJson.url && !uploadJson.secure_url) {
+              throw new Error('Image upload failed: ' + (uploadJson.message || 'Unknown error'));
+            }
+          }
+          // Cloudinary controller usually returns { url: ... } or { secure_url: ... }
+          imageUrl = uploadJson.secure_url || uploadJson.url || '';
         }
-        if (!electionAddress) {
-          alert('Election address missing. Please re-login as company.');
-          return;
-        }
 
-        // IMPORTANT: no image upload - use empty imageHash
-        const imageHash = '';
-
-        // 1) Optional: add candidate to blockchain if client-side flow requires it.
-        // If your front-end calls a function to write on-chain (e.g., via web3/ethers),
-        // do it here. This code assumes the backend RegisterCandidate will store metadata.
-        //
-        // 2) Register metadata in backend (Mongo)
+        // 2. Register Candidate
+        UI.showLoader('Registering Candidate...');
         const payload = {
           name,
           description,
           email,
-          imageHash,
+          imageHash: imageUrl, // Storing full URL in imageHash field
           election_address: electionAddress
         };
 
@@ -160,46 +285,48 @@
           body: JSON.stringify(payload)
         });
         const json = await safeJson(resp);
-        const ok = resp.ok || json?.status === 'success' || json?.success === true;
-        if (!ok) throw new Error(json?.message || `Server responded ${resp.status}`);
 
-        alert('Candidate added successfully!');
-        document.getElementById('registerCandidateForm').reset();
-        await loadCandidates();
+        if (resp.ok || json?.status === 'success' || json?.success === true) {
+          UI.toast('Candidate Registered Successfully!', 'success');
+          document.getElementById('registerCandidateForm').reset();
+          await loadCandidates();
+        } else {
+          throw new Error(json?.message || 'Registration failed');
+        }
+
       } catch (err) {
         console.error('registerCandidate error', err);
-        alert('Error: ' + (err.message || 'Unknown error'));
+        UI.toast('Error: ' + (err.message || 'Unknown error'), 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Register';
+        btn.style.opacity = 1;
+        UI.hideLoader();
       }
     }
 
-    // Utilities
-    function escapeHtml(text) {
-      return String(text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    // Nav
+    function navTo(page) {
+      const addr = getElectionAddress();
+      const q = addr ? `?address=${encodeURIComponent(addr)}` : '';
+      window.location.href = `${page}${q}`;
     }
 
-    function signOut() {
+    document.getElementById('dashboardBtn').addEventListener('click', () => navTo('company_dashboard.html'));
+    document.getElementById('candidatesBtn').addEventListener('click', () => navTo('candidate_list.html'));
+    document.getElementById('votersBtn').addEventListener('click', () => navTo('voting_list.html'));
+    document.getElementById('createBtn').addEventListener('click', () => window.location.href = 'create_election.html');
+
+    document.getElementById('logoutBtn').addEventListener('click', function () {
       Cookies.remove('address', { path: '/' });
       Cookies.remove('company_email', { path: '/' });
       window.location.href = 'homepage.html';
-    }
+    });
 
-    // Event wiring
-    document.getElementById('dashboardBtn').addEventListener('click', () => {
-      const addr = getElectionAddress();
-      window.location.href = `company_dashboard.html?address=${encodeURIComponent(addr)}`;
-    });
-    document.getElementById('votersBtn').addEventListener('click', () => {
-      const addr = getElectionAddress();
-      window.location.href = `voting_list.html?address=${encodeURIComponent(addr)}`;
-    });
-    document.getElementById('logoutBtn').addEventListener('click', signOut);
     document.getElementById('registerCandidateForm').addEventListener('submit', registerCandidate);
 
     // Init
     loadCandidates();
   </script>
 </body>
+
 </html>

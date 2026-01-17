@@ -1,147 +1,173 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Homepage</title>
-  <link rel="shortcut icon" type="image/x-icon" href="../static/logo3.png">
-  <!-- Tailwind for layout -->
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
-  <!-- keep Semantic UI link in case other pages reuse it -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/semantic-ui@2.4.2/dist/semantic.min.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BlockVotes - Secure Blockchain Voting</title>
+  <link rel="shortcut icon" type="image/x-icon" href="/static/logo3.png">
+  <link rel="stylesheet" href="/static/css/global.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
+    rel="stylesheet">
   <style>
-    /* keep small compatibility styles from previous version */
-    .menu-header {
-      color: #627eea;
-      font-family: 'Freestyle Script', cursive;
+    .hero-section {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 2rem;
+      position: relative;
+      z-index: 1;
     }
-    /* fallback for very small screens */
-    @media (max-width: 420px) {
-      .menu-header { font-size: 1.6rem; }
+
+    .hero-card {
+      max-width: 600px;
+      width: 100%;
+      background: rgba(23, 23, 33, 0.6);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 24px;
+      padding: 3rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      animation: fadeIn 0.8s ease-out;
+    }
+
+    .hero-logo {
+      width: 120px;
+      margin-bottom: 1.5rem;
+      filter: drop-shadow(0 0 10px rgba(108, 92, 231, 0.5));
+    }
+
+    .hero-title {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      background: linear-gradient(to right, #fff, #a29bfe);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 1.2rem;
+      color: var(--text-muted);
+      margin-bottom: 2.5rem;
+    }
+
+    .action-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 600px) {
+      .hero-title {
+        font-size: 2rem;
+      }
+
+      .action-buttons {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
+      max-width: 1200px;
+      margin: 4rem auto;
+      width: 100%;
+    }
+
+    .feature-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      padding: 2rem;
+      border-radius: 16px;
+      text-align: center;
+      transition: transform 0.3s ease;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-5px);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .feature-icon {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+      color: var(--accent-color);
+    }
+
+    .quote-section {
+      background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+      border-radius: 24px;
+      padding: 3rem;
+      text-align: center;
+      max-width: 900px;
+      margin: 2rem auto;
+      box-shadow: 0 10px 30px rgba(108, 92, 231, 0.3);
     }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
 
-  <!-- Fixed top menu (preserved from previous implementation for scroll behavior) -->
-  <header id="fixedMenu" class="fixed top-0 left-0 w-full z-50 bg-transparent transition-shadow transition-colors">
-    <div class="max-w-5xl mx-auto py-4 px-6 flex items-center">
-      <div class="menu-header text-3xl font-semibold">BlockVotes</div>
-    </div>
-  </header>
+<body>
 
-  <main id="main" class="flex flex-col items-center justify-center pt-24 pb-12">
-    <div class="text-center p-6 bg-white rounded-lg shadow-md w-full max-w-xl mx-4">
-      <img src="../static/logo3.png" alt="Logo" class="w-28 mx-auto mb-6" />
-      <h1 class="text-3xl md:text-4xl font-bold mb-4 text-gray-900">A blockchain-based E-voting system.</h1>
-      <p class="text-lg text-gray-600 mb-6">Make your vote count!</p>
+  <main class="hero-section">
+    <div class="hero-card">
+      <img src="/static/logo3.png" alt="BlockVotes Logo" class="hero-logo">
+      <h1 class="hero-title">BlockVotes</h1>
+      <p class="hero-subtitle">The Future of Secure, Transparent Elections on the Blockchain.</p>
 
-      <div class="flex flex-col sm:flex-row justify-center gap-4 mt-6">
-        <button id="companyBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded w-full sm:w-1/2">Election Commission</button>
-        <button id="voterBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded w-full sm:w-1/2">Voter</button>
+      <div class="action-buttons">
+        <a href="company_login.html" class="btn btn-primary">Election Commission</a>
+        <a href="voter_login.html" class="btn btn-outline">Voter Login</a>
       </div>
     </div>
 
-    <!-- Features / quote sections preserved lightly from previous page -->
-    <section class="w-full max-w-5xl mt-12 px-4">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center">
-        <div class="py-8">
-          <h3 class="text-2xl font-semibold">Private</h3>
-          <p class="text-gray-600 mt-4">Doesn't give any information regarding personal data.</p>
-          <h3 class="text-2xl font-semibold mt-6">Secure</h3>
-          <p class="text-gray-600 mt-4">Not even a single chance of shutting down of the system.</p>
-        </div>
-
-        <div class="flex justify-center">
-          <img src="../static/ether2.png" width="216" height="256" alt="Ethereum" class="pt-6">
-        </div>
-
-        <div class="py-8">
-          <h3 class="text-2xl font-semibold">Decentralized</h3>
-          <p class="text-gray-600 mt-4">Decentralized technology gives you the power to store your assets in a network.</p>
-          <h3 class="text-2xl font-semibold mt-6">Immutable</h3>
-          <p class="text-gray-600 mt-4">Keeps its ledgers in a never-ending state of forwarding momentum.</p>
-        </div>
+    <section class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Private</h3>
+        <p style="color: var(--text-muted); margin-top: 0.5rem;">Your data remains yours. Anonymity guaranteed by
+          design.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🛡️</div>
+        <h3>Secure</h3>
+        <p style="color: var(--text-muted); margin-top: 0.5rem;">Immutable ledger ensures every vote is permanent and
+          tamper-proof.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌐</div>
+        <h3>Decentralized</h3>
+        <p style="color: var(--text-muted); margin-top: 0.5rem;">Powered by Ethereum. No single point of failure.</p>
       </div>
     </section>
 
-    <section class="w-full max-w-5xl mt-12 bg-indigo-600 text-white py-12 px-6 rounded-lg">
-      <h3 class="text-2xl font-semibold mb-4">A fascinating quote</h3>
-      <p class="italic mb-4">"We have elected to put our money and faith in a mathematical framework that is free of politics and human error."</p>
-      <p class="font-semibold">Tyler Winklevoss</p>
+    <section class="quote-section">
+      <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">"Code is Law"</h3>
+      <p style="font-style: italic; font-size: 1.1rem; opacity: 0.9;">
+        "We have elected to put our money and faith in a mathematical framework that is free of politics and human
+        error."
+      </p>
+      <p style="margin-top: 1rem; font-weight: 700;">— Tyler Winklevoss</p>
     </section>
   </main>
 
+  <script src="/static/js/ui.js"></script>
   <script>
-    // preserve previous redirect functions and mobile/scroll behavior
-
-    // scroll handler that updates the fixed menu background and shadow
-    (function() {
-      const menu = document.getElementById('fixedMenu');
-
-      function onScroll() {
-        if (!menu) return;
-        if (window.scrollY > 100) {
-          menu.style.background = 'white';
-          menu.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
-        } else {
-          menu.style.background = 'transparent';
-          menu.style.boxShadow = 'none';
-        }
+    // Check for existing session
+    document.addEventListener('DOMContentLoaded', () => {
+      // If company logged in and has election address
+      if (localStorage.getItem('companyElectionAddress')) {
+        const btn = document.querySelector('a[href="company/login.html"]');
+        btn.href = `company_dashboard.html?address=${encodeURIComponent(localStorage.getItem('companyElectionAddress'))}`;
+        btn.textContent = "Go to Dashboard";
       }
-
-      window.addEventListener('scroll', onScroll, { passive: true });
-      window.addEventListener('load', onScroll);
-    })();
-
-    // legacy redirect functions (kept for compatibility)
-    function redirectToCompanyLogin() {
-      window.location.href = 'company_login.html';
-    }
-
-    function redirectToVoterLogin() {
-      window.location.href = 'voter_login.html';
-    }
-
-    // mobile responsiveness adjustments (kept)
-    function checkMobile() {
-      const mainHeading = document.querySelector('.text-3xl');
-      const subHeading = document.querySelector('.text-lg');
-      if (!mainHeading || !subHeading) return;
-
-      if (window.innerWidth <= 768) {
-        mainHeading.style.fontSize = '1.5rem';
-        mainHeading.style.marginTop = '0.5rem';
-        subHeading.style.fontSize = '1rem';
-      } else {
-        mainHeading.style.fontSize = '';
-        mainHeading.style.marginTop = '';
-        subHeading.style.fontSize = '';
-      }
-    }
-
-    window.addEventListener('load', checkMobile);
-    window.addEventListener('resize', checkMobile);
-
-    // new homepage logic (from your Tailwind snippet) preserved and integrated
-    function hasCompanyElection() {
-      return localStorage.getItem('companyElectionAddress') !== null;
-    }
-
-    document.getElementById('companyBtn').addEventListener('click', () => {
-      if (hasCompanyElection()) {
-        const addr = localStorage.getItem('companyElectionAddress');
-        window.location.href = `company_dashboard.html?address=${encodeURIComponent(addr)}`;
-      } else {
-        // keep previous redirect function available
-        redirectToCompanyLogin();
-      }
-    });
-
-    document.getElementById('voterBtn').addEventListener('click', () => {
-      // keep previous redirect function available
-      redirectToVoterLogin();
     });
   </script>
 </body>
+
 </html>

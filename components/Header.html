@@ -3,100 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css">
+    <link rel="stylesheet" href="/static/css/global.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    <script src="/static/js/ui.js"></script>
     <style>
-        .header {
-            z-index: 10;
-            position: relative;
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            background: rgba(23, 23, 33, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--glass-border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
-        .header-menu {
-            max-height: 50px;
-            margin-bottom: 0;
+
+        .logo {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #6c5ce7, #00cec9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
         }
-        .header-title {
-            vertical-align: middle;
-            font-size: 40px;
-            padding-left: 42%;
-            padding-top: 4%;
-        }
-        .user-info {
-            padding-right: 10px;
+
+        .nav-items {
             display: flex;
             align-items: center;
+            gap: 1.5rem;
         }
-        .header-divider {
-            margin: 0;
+
+        .user-pill {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--glass-bg);
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            border: 1px solid var(--glass-border);
+            font-size: 0.9rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--success-color);
         }
     </style>
 </head>
 <body>
-    <!-- Header Component -->
-    <div class="header">
-        <div class="ui secondary menu header-menu">
-            <div class="item header-title">
-                BlockVotes
-            </div>
-            <div class="right menu">
-                <div class="item">
-                    <i class="user icon"></i>
-                </div>
-                <div class="item user-info" id="user-email">
-                    Loading...
-                </div>
-            </div>
+    <nav class="navbar">
+        <a href="/" class="logo">BlockVotes</a>
+        
+        <div class="nav-items" id="nav-actions">
+            <!-- Dynamic Content -->
         </div>
-        <hr class="header-divider">
-    </div>
+    </nav>
 
     <script>
-        // Initialize user email on load
-        document.addEventListener('DOMContentLoaded', function() {
-            updateUserEmail();
-        });
-
-        // Function to update user email display
-        function updateUserEmail() {
-            const userEmailElement = document.getElementById('user-email');
+        document.addEventListener('DOMContentLoaded', () => {
             const companyEmail = Cookies.get('company_email');
             const voterEmail = Cookies.get('voter_email');
-            
+            const navActions = document.getElementById('nav-actions');
+
             if (companyEmail) {
-                userEmailElement.textContent = companyEmail;
+                navActions.innerHTML = `
+                    <div class="user-pill">
+                        <div class="status-dot"></div>
+                        <span>${companyEmail} (Admin)</span>
+                    </div>
+                `;
             } else if (voterEmail) {
-                userEmailElement.textContent = voterEmail;
+                navActions.innerHTML = `
+                    <div class="user-pill">
+                        <div class="status-dot"></div>
+                        <span>${voterEmail} (Voter)</span>
+                    </div>
+                `;
             } else {
-                userEmailElement.textContent = 'Not logged in';
+                navActions.innerHTML = `
+                    <a href="/company/login.html" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.9rem;">Company Login</a>
+                    <a href="/voter_login.html" class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.9rem;">Voter Login</a>
+                `;
             }
-        }
-
-        // Function to get user type
-        function getUserType() {
-            if (Cookies.get('company_email')) {
-                return 'company';
-            } else if (Cookies.get('voter_email')) {
-                return 'voter';
-            }
-            return null;
-        }
-
-        // Function to get election address
-        function getElectionAddress() {
-            return Cookies.get('address');
-        }
-
-        // Function to check if user is authenticated
-        function isAuthenticated() {
-            return !!(Cookies.get('company_email') || Cookies.get('voter_email'));
-        }
-
-        // Make functions globally available
-        window.Header = {
-            updateUserEmail,
-            getUserType,
-            getElectionAddress,
-            isAuthenticated
-        };
+        });
     </script>
 </body>
 </html>
