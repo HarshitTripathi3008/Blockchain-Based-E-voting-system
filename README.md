@@ -101,7 +101,3 @@ Before running the application, ensure you have the following installed:
 *   `static/`: CSS, JS, and image assets.
 *   `scripts/`: Utility scripts (e.g., clearing database data).
 *   `util/`: Helper functions including Ethereum interactions.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please fork the repository and submit a pull request for any improvements or bug fixes.
