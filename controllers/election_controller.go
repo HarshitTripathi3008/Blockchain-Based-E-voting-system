@@ -16,22 +16,24 @@ import (
 	"MAJOR-PROJECT/bindings"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/gorilla/mux"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gorilla/mux"
 )
 
 // Candidate is the representation returned to the client
 type Candidate struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	ImageHash   string   `json:"imageHash"`
-	VoteCount   *big.Int `json:"voteCount"`
-	Email       string   `json:"email"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	ImageHash    string   `json:"imageHash"`
+	VoteCount    *big.Int `json:"voteCount"`
+	Email        string   `json:"email"`
+	ManifestoUrl string   `json:"manifestoUrl,omitempty"`
 }
 
 type BlockchainResponse struct {
@@ -299,6 +301,10 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 					},
 				}
 				respondJSON(w, http.StatusOK, resp)
+				// AUDIT LOG
+				go LogAction(deployedAddr.Hex(), "ELECTION_CREATED", req.CompanyEmail, fmt.Sprintf("Created election '%s'", req.ElectionName))
+				// METADATA INIT
+				go EnsureMetadata(deployedAddr.Hex())
 				return
 			}
 			log.Printf("CreateElection: factory returned zero address for email %s after create tx", req.CompanyEmail)
@@ -325,6 +331,7 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 		ElectionAddress string `json:"election_address"`
 		CandidateID     int64  `json:"candidate_id"`
 		VoterEmail      string `json:"voter_email"`
+		OTP             string `json:"otp"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -339,6 +346,25 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 	addrNorm, err := normalizeAddrParam(req.ElectionAddress)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid election_address: "+err.Error())
+		return
+	}
+
+	// CHECK PHASES
+	active, reason := IsElectionActive(addrNorm)
+	if !active {
+		respondError(w, http.StatusBadRequest, "Voting not allowed: "+reason)
+		return
+	}
+
+	// CHECK VERIFICATION
+	if verified := IsVoterVerified(req.VoterEmail, addrNorm); !verified {
+		respondError(w, http.StatusForbidden, "Voter not verified. Please contact election admin.")
+		return
+	}
+
+	// MFA CHECK
+	if ok := VerifyAndDeleteOTP(req.VoterEmail, req.OTP); !ok {
+		respondError(w, http.StatusUnauthorized, "Invalid or expired OTP")
 		return
 	}
 
@@ -405,9 +431,9 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, BlockchainResponse{Status: "success", Message: "vote transaction submitted", Data: map[string]interface{}{"txHash": tx.Hash().Hex()}})
+	// AUDIT LOG
+	go LogAction(addrNorm, "VOTE_CAST", req.VoterEmail, fmt.Sprintf("Voted for candidate ID %d", req.CandidateID))
 }
-
-
 
 // GetElectionCandidates - improved and robust
 func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
@@ -617,12 +643,26 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 			tryDBFallbackWithMessage(w, addrStr, fmt.Sprintf("failed to fetch candidate %d from chain: %v", i, err))
 			return
 		}
+		// merge manifesto from DB (inefficient loop but safe)
+		manifesto := ""
+		if candidateCollection != nil {
+			var doc CandidateDocument
+			if err := candidateCollection.FindOne(r.Context(), bson.M{"email": email, "electionAddress": addrStr}).Decode(&doc); err != nil {
+				if err != mongo.ErrNoDocuments {
+					log.Printf("GetElectionCandidates: manifesto lookup warning for %s: %v", email, err)
+				}
+			} else {
+				manifesto = doc.ManifestoUrl
+			}
+		}
+
 		candidates = append(candidates, Candidate{
-			Name:        name,
-			Description: desc,
-			ImageHash:   imgHash,
-			VoteCount:   voteCount,
-			Email:       email,
+			Name:         name,
+			Description:  desc,
+			ImageHash:    imgHash,
+			VoteCount:    voteCount,
+			Email:        email,
+			ManifestoUrl: manifesto,
 		})
 	}
 
@@ -679,12 +719,13 @@ func tryDBFallbackWithMessage(w http.ResponseWriter, electionAddress, detail str
 	candidates := make([]map[string]interface{}, 0, len(docs))
 	for _, d := range docs {
 		candidates = append(candidates, map[string]interface{}{
-			"name":        d.Name,
-			"description": d.Description,
-			"imageHash":   d.ImageHash,
-			"email":       d.Email,
-			"txHash":      d.TxHash,
-			"createdAt":   d.CreatedAt,
+			"name":         d.Name,
+			"description":  d.Description,
+			"imageHash":    d.ImageHash,
+			"email":        d.Email,
+			"manifestoUrl": d.ManifestoUrl,
+			"txHash":       d.TxHash,
+			"createdAt":    d.CreatedAt,
 		})
 	}
 

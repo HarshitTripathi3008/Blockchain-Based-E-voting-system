@@ -255,14 +255,22 @@
 
       voters.forEach(v => {
         const id = v.id || v._id || v.email;
+        const status = v.status || 'Pending';
+        const statusColor = status === 'Verified' ? '#10b981' : (status === 'Rejected' ? '#ef4444' : '#f59e0b');
+
         const el = document.createElement('div');
         el.className = 'voter-card fade-in';
         el.innerHTML = `
                 <div>
                     <h4 style="margin:0;">${escapeHtml(v.full_name || v.email)}</h4>
                     <p style="color:var(--text-muted); font-size:0.9rem;">${escapeHtml(v.email)}</p>
+                    <span style="display:inline-block; padding:2px 8px; border-radius:12px; font-size:0.75rem; background:${statusColor}20; color:${statusColor}; border:1px solid ${statusColor}; margin-top:0.3rem;">
+                        ${status}
+                    </span>
                 </div>
                 <div>
+                    ${status !== 'Verified' ? `<button class="action-btn" style="background:#10b98120; color:#34d399;" onclick="verifyVoter('${id}', 'Verified')">Approve</button>` : ''}
+                    ${status === 'Verified' ? `<button class="action-btn" style="background:#ef444420; color:#f87171;" onclick="verifyVoter('${id}', 'Rejected')">Reject</button>` : ''}
                     <button class="action-btn btn-details" onclick="openDetails('${id}')">Details</button>
                     <button class="action-btn btn-edit" onclick="openEdit('${id}')">Edit</button>
                     <button class="action-btn btn-delete" onclick="deleteVoter('${id}')">Delete</button>
@@ -365,6 +373,24 @@
           UI.toast('Delete Failed', 'error');
         }
       } catch (e) { console.error(e); UI.toast('Error deleting', 'error'); }
+      finally { UI.hideLoader(); }
+    };
+
+    window.verifyVoter = async (id, status) => {
+      UI.showLoader('Updating Status...');
+      try {
+        const resp = await fetch(`/api/voters/${encodeURIComponent(id)}/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
+        });
+        if (resp.ok) {
+          UI.toast('Status Updated', 'success');
+          loadVoters();
+        } else {
+          UI.toast('Update Failed', 'error');
+        }
+      } catch (e) { console.error(e); UI.toast('Error updating', 'error'); }
       finally { UI.hideLoader(); }
     };
 

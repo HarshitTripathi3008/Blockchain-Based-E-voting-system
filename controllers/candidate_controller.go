@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"MAJOR-PROJECT/bindings"
+
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 )
 
 // CandidateRequest and CandidateDocument kept same as before (ensure candidateCollection init exists)
@@ -24,6 +25,7 @@ func InitCandidateCollection(client *mongo.Client, dbName string) {
 	candidateCollection = client.Database(dbName).Collection("candidates")
 	fmt.Println("✅ Initialized candidates collection")
 }
+
 type Response struct {
 	Status  string      `json:"status"`
 	Message string      `json:"message"`
@@ -36,12 +38,14 @@ type CandidateRequest struct {
 	ImageHash       string `json:"imageHash"`
 	ElectionName    string `json:"election_name,omitempty"`
 	ElectionAddress string `json:"election_address,omitempty"`
+	ManifestoUrl    string `json:"manifesto_url,omitempty"` // For JSON requests (if pre-uploaded)
 }
 type CandidateDocument struct {
 	Name            string    `bson:"name"`
 	Email           string    `bson:"email"`
 	Description     string    `bson:"description"`
 	ImageHash       string    `bson:"imageHash"`
+	ManifestoUrl    string    `bson:"manifestoUrl,omitempty"`
 	ElectionName    string    `bson:"electionName,omitempty"`
 	ElectionAddress string    `bson:"electionAddress,omitempty"`
 	TxHash          string    `bson:"txHash,omitempty"`
@@ -49,6 +53,7 @@ type CandidateDocument struct {
 	CreatedAt       time.Time `bson:"createdAt"`
 	UpdatedAt       time.Time `bson:"updatedAt"`
 }
+
 // RegisterCandidate registers a candidate on-chain (using bindings.NewElection) and persists metadata.
 func RegisterCandidate(w http.ResponseWriter, r *http.Request) {
 	// CORS & headers
@@ -135,6 +140,7 @@ func RegisterCandidate(w http.ResponseWriter, r *http.Request) {
 			Email:           req.Email,
 			Description:     req.Description,
 			ImageHash:       req.ImageHash,
+			ManifestoUrl:    req.ManifestoUrl,
 			ElectionName:    req.ElectionName,
 			ElectionAddress: req.ElectionAddress,
 			TxHash:          txHashHex,

@@ -118,35 +118,49 @@
     <main class="main-content">
       <h2 style="margin-bottom: 2rem;">Candidate Management</h2>
 
-      <div class="glass-card" style="margin-bottom: 2rem;">
-        <h3 style="margin-bottom: 1.5rem; color: var(--accent-color);">Register New Candidate</h3>
-        <form id="registerCandidateForm">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-            <input id="candName" type="text" required placeholder="Full Name" />
-            <input id="candEmail" type="email" required placeholder="Email Address" />
-          </div>
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; align-items: start;">
 
-          <div style="margin-bottom: 1.5rem;">
-            <textarea id="candDesc" rows="3" required placeholder="Candidate Description / Manifesto"></textarea>
-          </div>
+        <!-- Candidate List (Left) -->
+        <div>
+          <h3 style="margin-bottom: 1rem; color: var(--text-muted);">Registered Candidates</h3>
+          <div id="noCandidates" style="display:none; color: var(--text-muted); font-style: italic;">No candidates
+            registered yet.</div>
+          <div id="candidatesContainer" class="candidate-grid"
+            style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));"></div>
+        </div>
 
-          <div style="margin-bottom: 1.5rem;">
-            <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">Candidate
-              Image</label>
-            <input id="candImage" type="file" accept="image/*" style="padding: 0.5rem;" />
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Image will be stored
-              continuously on Cloudinary.</p>
-          </div>
+        <!-- Register Form (Right) -->
+        <div class="glass-card" style="height: fit-content; position: sticky; top: 1rem;">
+          <h3 style="margin-bottom: 1.5rem; color: var(--accent-color);">Register Candidate</h3>
+          <form id="registerCandidateForm">
+            <div style="margin-bottom: 1rem;">
+              <input id="candName" type="text" required placeholder="Full Name" style="width: 100%;" />
+            </div>
 
-          <button id="registerBtn" type="submit" class="btn btn-primary">Register Candidate</button>
-        </form>
+            <div style="margin-bottom: 1rem;">
+              <input id="candEmail" type="email" required placeholder="Email Address" style="width: 100%;" />
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+              <textarea id="candDesc" rows="4" required placeholder="Description / Manifesto"
+                style="width: 100%;"></textarea>
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+              <label
+                style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">Candidate
+                Image</label>
+              <input id="candImage" type="file" accept="image/*" style="font-size: 0.85rem;" />
+            </div>
+
+
+
+            <button id="registerBtn" type="submit" class="btn btn-primary" style="width: 100%;">Register
+              Candidate</button>
+          </form>
+        </div>
+
       </div>
-
-      <h3 style="margin-bottom: 1rem;">Registered Candidates</h3>
-
-      <div id="noCandidates" style="display:none; color: var(--text-muted); font-style: italic;">No candidates
-        registered yet.</div>
-      <div id="candidatesContainer" class="candidate-grid"></div>
 
     </main>
   </div>
@@ -210,7 +224,7 @@
                     <div class="vote-badge">${votes} Votes</div>
                     <img src="${imgUrl}" onerror="this.src='/static/default-candidate.png'" alt="${escapeHtml(name)}" class="candidate-img"/>
                     <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; color: #fff;">${escapeHtml(name)}</h3>
-                    <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; max-height: 100px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(desc)}</p>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; max-height: 100px; overflow: hidden; text-overflow: ellipsis; margin-bottom:0.8rem;">${escapeHtml(desc)}</p>
                 `;
             container.appendChild(card);
           });
@@ -249,33 +263,34 @@
 
       try {
         let imageUrl = '';
+        // let manifestoUrl = ''; // REMOVED
 
-        // 1. Upload Image if present
+        // 1. Upload Image
         if (fileInput.files.length > 0) {
-          UI.showLoader('Uploading Image to Cloudinary...');
+          UI.showLoader('Uploading Image...');
           const fd = new FormData();
           fd.append('file', fileInput.files[0]);
-
           const uploadResp = await fetch('/api/upload/cloudinary', { method: 'POST', body: fd });
           const uploadJson = await uploadResp.json();
-
-          if (!uploadResp.ok || (uploadJson.status !== 'success' && uploadJson.status !== true)) { // check generic status
-            // sometimes API returns success:true
-            if (!uploadJson.url && !uploadJson.secure_url) {
-              throw new Error('Image upload failed: ' + (uploadJson.message || 'Unknown error'));
-            }
-          }
-          // Cloudinary controller usually returns { url: ... } or { secure_url: ... }
           imageUrl = uploadJson.secure_url || uploadJson.url || '';
         }
 
-        // 2. Register Candidate
+        // 2. Upload Manifesto (PDF) - REMOVED
+        /*
+        const manifestoInput = document.getElementById('candManifesto');
+        if (manifestoInput && manifestoInput.files.length > 0) {
+           ...
+        }
+        */
+
+        // 3. Register Candidate
         UI.showLoader('Registering Candidate...');
         const payload = {
           name,
           description,
           email,
-          imageHash: imageUrl, // Storing full URL in imageHash field
+          imageHash: imageUrl,
+          manifesto_url: "", // Empty
           election_address: electionAddress
         };
 

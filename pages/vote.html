@@ -154,6 +154,15 @@
       <div id="voterEmailDisplay"
         style="font-size: 0.95rem; font-weight: 600; color: #fff; margin-bottom: 2rem; word-break: break-all;">—</div>
 
+      <button id="downloadIdBtn" class="btn btn-primary" style="margin-top: 1rem; width: 100%;">
+        Download Voter ID (PDF)
+      </button>
+
+      <button id="emailIdBtn" class="btn btn-outline"
+        style="color: var(--accent-color); border-color: rgba(162, 155, 254, 0.3); margin-top: 0.5rem; width: 100%;">
+        Email ID Card
+      </button>
+
       <button id="logoutBtn" class="btn btn-outline"
         style="color: var(--error-color); border-color: rgba(239, 68, 68, 0.3); margin-top: auto; width: 100%;">
         Sign Out
@@ -220,6 +229,19 @@
       </div>
 
       <div id="candidatesContainer"></div>
+
+      <!-- OTP Section -->
+      <div id="otpSection"
+        style="margin-top: 1.5rem; border-top: 1px solid var(--glass-border); padding-top: 1rem; display:none;">
+        <h4 style="margin-bottom:0.5rem; color:var(--accent-color);">Security Verification</h4>
+        <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:1rem;">Review your selection above. To
+          confirm, enter the OTP sent to your email.</p>
+        <div style="display: flex; gap: 0.5rem;">
+          <input id="voteOtpInput" type="text" placeholder="Enter OTP"
+            style="flex:1; padding:0.8rem; border-radius:8px; border:1px solid var(--glass-border); background:rgba(0,0,0,0.2); color:#fff; font-size:1rem; text-align:center; letter-spacing:2px;">
+          <button id="sendVoteOtpBtn" class="btn btn-outline" style="white-space:nowrap;">Send OTP</button>
+        </div>
+      </div>
 
       <div style="margin-top: 2rem; text-align: right;">
         <button id="submitVote" class="btn btn-primary" disabled style="width: 100%;">Confirm Vote</button>
@@ -337,7 +359,8 @@
                     </div>
                     <div style="flex:1;">
                         <div style="font-weight:600; font-size:1.1rem; color:#fff;">${escapeHtml(c.name)}</div>
-                        <div style="font-size:0.9rem; color:var(--text-muted);">${escapeHtml(c.description)}</div>
+                         <div style="font-size:0.9rem; color:var(--text-muted);">${escapeHtml(c.description)}</div>
+                         ${(c.manifestoUrl || c.manifesto_url) ? `<div style="margin-top:4px;"><a href="${c.manifestoUrl || c.manifesto_url}" target="_blank" style="color:var(--accent-color); font-size:0.8rem; text-decoration:none;">📄 View Manifesto</a></div>` : ''}
                     </div>
                     <div style="width: 20px; height: 20px; border: 2px solid var(--text-muted); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
                         <div class="dot" style="width: 10px; height: 10px; background: var(--accent-color); border-radius: 50%; opacity: 0; transition: opacity 0.2s;"></div>
@@ -355,11 +378,11 @@
             el.querySelector('.dot').style.opacity = '1';
             el.querySelector('.candidate-option > div:last-child').style.borderColor = 'var(--accent-color)';
 
-            // The backend typically expects an index for simple contract calls, or an ID.
-            // The original code used `idx` (index in array).
             selectedCandidateId = idx;
+            // Show OTP section
+            document.getElementById('otpSection').style.display = 'block';
+            document.getElementById('submitVote').textContent = `Confirm & Vote`;
             submitBtn.disabled = false;
-            submitBtn.textContent = `Vote for ${escapeHtml(c.name)}`;
           };
           container.appendChild(el);
         });
@@ -369,6 +392,36 @@
         container.innerHTML = '<div style="color:var(--error-color);">Failed to load candidates.</div>';
       }
     }
+
+    document.getElementById('sendVoteOtpBtn').onclick = async () => {
+      const btn = document.getElementById('sendVoteOtpBtn');
+      const email = getVoterEmail();
+      const addr = getElectionAddress();
+
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+
+      try {
+        const resp = await fetch('/api/voters/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, election_address: addr })
+        });
+        const json = await safeJson(resp);
+        if (resp.ok) {
+          UI.toast(json?.message || "OTP Sent", "success");
+          btn.textContent = "Resend OTP";
+        } else {
+          UI.toast(json?.message || "Failed to send OTP", "error");
+          btn.textContent = "Send OTP";
+        }
+      } catch (e) {
+        UI.toast("Error sending OTP", "error");
+        btn.textContent = "Send OTP";
+      } finally {
+        setTimeout(() => btn.disabled = false, 5000);
+      }
+    };
 
     submitBtn.onclick = async () => {
       if (selectedCandidateId === null) return;
@@ -381,8 +434,17 @@
         const payload = {
           candidate_id: selectedCandidateId,
           voter_email: getVoterEmail(),
-          election_address: getElectionAddress()
+          election_address: getElectionAddress(),
+          otp: document.getElementById('voteOtpInput').value
         };
+
+        if (!payload.otp) {
+          UI.toast("Please enter OTP", "warning");
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = 1;
+          UI.hideLoader();
+          return;
+        }
 
         const resp = await fetch(`/api/elections/${encodeURIComponent(payload.election_address)}/vote`, {
           method: 'POST',
@@ -416,6 +478,74 @@
       Cookies.remove('voter_email'); Cookies.remove('address');
       window.location.href = 'homepage.html';
     };
+
+    document.getElementById('downloadIdBtn').onclick = () => {
+      const fn = (id) => {
+        window.location.href = `/api/voters/${id}/card`;
+      };
+      resolveVoterId(document.getElementById('downloadIdBtn'), fn);
+    };
+
+    document.getElementById('emailIdBtn').onclick = () => {
+      const fn = (id) => {
+        const btn = document.getElementById('emailIdBtn');
+        btn.textContent = "Sending Email...";
+        btn.disabled = true;
+
+        fetch(`/api/voters/${id}/card/email`, { method: 'POST' })
+          .then(r => r.json())
+          .then(json => {
+            if (json.status === 'success') {
+              UI.toast('ID Card sent to email!', 'success');
+            } else {
+              UI.toast(json.message || 'Failed to send email', 'error');
+            }
+          })
+          .catch(e => {
+            console.error(e);
+            UI.toast('Network error', 'error');
+          })
+          .finally(() => {
+            btn.textContent = "Email ID Card";
+            btn.disabled = false;
+          });
+      };
+      resolveVoterId(document.getElementById('emailIdBtn'), fn);
+    };
+
+    // Helper to resolve ID for ID card actions
+    function resolveVoterId(btnElement, callback) {
+      const voterEmail = getVoterEmail();
+      const address = getElectionAddress();
+
+      btnElement.disabled = true;
+      const originalText = btnElement.textContent;
+      btnElement.textContent = "Processing...";
+
+      fetch(`/api/elections/${encodeURIComponent(address)}/voters`)
+        .then(r => r.json())
+        .then(data => {
+          const voters = data.voters || [];
+          const me = voters.find(v => v.email === voterEmail);
+          if (me && (me.id || me._id)) {
+            const id = me.id || me._id;
+            // Restore button state before callback takes over (or if it's sync)
+            btnElement.disabled = false;
+            btnElement.textContent = originalText;
+            callback(id);
+          } else {
+            UI.toast("Voter record not found", "error");
+            btnElement.disabled = false;
+            btnElement.textContent = originalText;
+          }
+        })
+        .catch(e => {
+          console.error(e);
+          UI.toast("Error finding voter ID", "error");
+          btnElement.disabled = false;
+          btnElement.textContent = originalText;
+        });
+    }
 
     // Init
     loadData();

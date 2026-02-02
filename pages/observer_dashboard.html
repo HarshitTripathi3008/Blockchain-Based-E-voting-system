@@ -101,9 +101,6 @@
       </div>
       <nav style="flex: 1;">
         <button id="dashboardBtn" class="nav-btn active">Dashboard</button>
-        <button id="candidatesBtn" class="nav-btn">Candidate List</button>
-        <button id="votersBtn" class="nav-btn">Voter List</button>
-        <button id="createBtn" class="nav-btn">Create Election</button>
       </nav>
       <button id="logoutBtn" class="nav-btn" style="color: var(--error-color); margin-top: auto;">Logout</button>
     </aside>
@@ -111,8 +108,8 @@
     <main class="main-content">
       <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
         <div>
-          <h2>Election Dashboard</h2>
-          <p style="color: var(--text-muted);">Manage your election processing</p>
+          <h2>Election Observer Dashboard</h2>
+          <p style="color: var(--text-muted);">Real-time election monitoring</p>
         </div>
         <div style="text-align: right; font-size: 0.9rem;">
           <div id="companyEmailDisplay" style="color: #fff; font-weight: 600;"></div>
@@ -153,12 +150,7 @@
         </div>
       </div>
 
-      <div style="display: flex; gap: 1rem;">
-        <button id="viewCandidates" class="btn btn-outline">View Candidates</button>
-        <button id="manageVoters" class="btn btn-outline">Manage Voters</button>
-        <button id="endElection" class="btn" style="background: var(--error-color); color: white; border: none;">End
-          Election & Mail Results</button>
-      </div>
+
     </main>
   </div>
 
@@ -182,7 +174,7 @@
     }
 
     function updateHeaderDisplays() {
-      document.getElementById('companyEmailDisplay').textContent = getCompanyEmail() || '';
+      document.getElementById('companyEmailDisplay').textContent = '👁️ Observer Mode';
       const addr = getElectionAddress();
       document.getElementById('electionAddrDisplay').textContent = addr ? `${addr.substr(0, 10)}...${addr.substr(-8)}` : 'No election selected';
     }
@@ -237,10 +229,8 @@
         }, 0);
         document.getElementById('votesCount').textContent = String(totalVotes);
 
-        // Render Charts
         renderChart(candidates);
         renderTurnoutChart(totalVotes, voters.length);
-        // Geo analytics removed
       } catch (err) {
         console.warn('Failed to load dashboard data', err);
         UI.toast('Failed to load dashboard data', 'error');
@@ -366,58 +356,6 @@
       }
     }
 
-    // --- end election handler ---
-    async function endElectionHandler() {
-      const btn = document.getElementById('endElection');
-      const addr = getElectionAddress();
-      if (!addr) { UI.toast('No election selected', 'error'); return; }
-      if (!confirm('End election and send result mail to all voters?')) return;
-
-      try {
-        btn.disabled = true;
-        btn.textContent = 'Ending election...';
-        btn.style.opacity = 0.6;
-        UI.showLoader('Ending Election (Generating Results)...');
-
-        let electionName = document.getElementById('electionName')?.textContent || '';
-        if (!electionName || electionName.trim() === '' || electionName === 'Unnamed election') {
-          electionName = prompt('Enter election name:') || "Election";
-        }
-
-        const winner = await computeWinner(addr);
-        let winnerName = winner?.name || prompt('Enter winner name:');
-
-        const payload = {
-          election_address: addr,
-          election_name: electionName,
-          winner_candidate: winnerName
-        };
-        if (winner?.email) payload.candidate_email = winner.email;
-
-        const resp = await fetch('/api/voter/resultMail', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const json = await safeJson(resp);
-
-        if (resp.ok && (json?.status === 'success' || json?.success === true)) {
-          UI.toast('Result emails sent successfully!', 'success');
-        } else {
-          UI.toast('Error: ' + (json?.message || 'Failed'), 'error');
-        }
-
-      } catch (err) {
-        console.error('endElectionHandler error', err);
-        UI.toast('Failed to end election', 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'End Election (mail)';
-        btn.style.opacity = 1;
-        UI.hideLoader();
-      }
-    }
 
     // --- navigation & event wiring ---
     function navTo(page) {
@@ -426,22 +364,10 @@
       window.location.href = `${page}${q}`;
     }
 
-    document.getElementById('candidatesBtn').addEventListener('click', () => navTo('candidate_list.html'));
-    document.getElementById('votersBtn').addEventListener('click', () => navTo('voting_list.html'));
-    document.getElementById('dashboardBtn').addEventListener('click', () => navTo('company_dashboard.html'));
-    document.getElementById('createBtn').addEventListener('click', () => window.location.href = 'create_election.html');
-
     document.getElementById('logoutBtn').addEventListener('click', function () {
-      localStorage.removeItem('companyElectionAddress');
-      localStorage.removeItem('companyEmail');
-      Cookies.remove('company_email', { path: '/' });
       Cookies.remove('address', { path: '/' });
-      window.location.href = 'homepage.html';
+      window.location.href = 'observer_login.html';
     });
-
-    document.getElementById('viewCandidates').addEventListener('click', () => navTo('candidate_list.html'));
-    document.getElementById('manageVoters').addEventListener('click', () => navTo('voting_list.html'));
-    document.getElementById('endElection').addEventListener('click', endElectionHandler);
 
     // --- init page ---
     updateHeaderDisplays();

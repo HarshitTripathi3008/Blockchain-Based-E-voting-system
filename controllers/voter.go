@@ -11,13 +11,20 @@ import (
 	"regexp"
 	"time"
 
+	"encoding/base64"
+
+	"github.com/gorilla/mux"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
+
+	"MAJOR-PROJECT/bindings"
+
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type Voter struct {
@@ -31,6 +38,7 @@ type Voter struct {
 	FatherName      string             `bson:"father_name,omitempty" json:"father_name,omitempty"`
 	MotherName      string             `bson:"mother_name,omitempty" json:"mother_name,omitempty"`
 	ElectionAddress string             `bson:"election_address" json:"election_address"`
+	Status          string             `bson:"status,omitempty" json:"status"` // "Pending", "Verified", "Rejected"
 }
 
 type VoterRequest struct {
@@ -138,7 +146,6 @@ func genPassword(n int) (string, error) {
 // ===== existing handlers (RegisterVoter, UpdateVoter, DeleteVoter etc.) =====
 // --- For brevity, keep your existing implementations unchanged.
 // If you prefer I can paste them in full; currently they remain as in your repo.
-
 
 // --------------------------
 // New: SendOTP handler
@@ -350,6 +357,7 @@ func VerifyOTPAndRegister(w http.ResponseWriter, r *http.Request) {
 
 	_ = json.NewEncoder(w).Encode(VoterResponse{Status: "success", Message: "voter created; password emailed"})
 }
+
 // ===== RegisterVoter (expanded) =====
 func RegisterVoter(w http.ResponseWriter, r *http.Request) {
 	withVoterCORS(w)
@@ -428,6 +436,7 @@ func RegisterVoter(w http.ResponseWriter, r *http.Request) {
 		FatherName:      req.FatherName,
 		MotherName:      req.MotherName,
 		ElectionAddress: req.ElectionAddress,
+		Status:          "Pending",
 	}
 
 	result, err := voterCollection.InsertOne(ctx, newVoter)
@@ -736,6 +745,11 @@ func DeleteVoter(w http.ResponseWriter, r *http.Request) {
 
 // sendEmail using SendGrid API
 func sendEmail(to, subject, htmlBody string) error {
+	return sendEmailWithAttachment(to, subject, htmlBody, "", nil)
+}
+
+// sendEmailWithAttachment sends email with optional PDF attachment
+func sendEmailWithAttachment(to, subject, htmlBody, filename string, attachmentData []byte) error {
 	apiKey := os.Getenv("SENDGRID_API_KEY")
 	fromEmail := os.Getenv("SENDER_EMAIL")
 
@@ -746,8 +760,18 @@ func sendEmail(to, subject, htmlBody string) error {
 	from := mail.NewEmail("Voting System", fromEmail)
 	toAddr := mail.NewEmail("", to)
 
-	// Create message; using htmlBody as HTML content and leaving text content empty
+	// Create message
 	message := mail.NewSingleEmail(from, subject, toAddr, "", htmlBody)
+
+	if len(attachmentData) > 0 {
+		a := mail.NewAttachment()
+		encoded := base64.StdEncoding.EncodeToString(attachmentData)
+		a.SetContent(encoded)
+		a.SetType("application/pdf")
+		a.SetFilename(filename)
+		a.SetDisposition("attachment")
+		message.AddAttachment(a)
+	}
 
 	client := sendgrid.NewSendClient(apiKey)
 	resp, err := client.Send(message)
@@ -810,6 +834,7 @@ func GetElectionVoters(w http.ResponseWriter, r *http.Request) {
 			"mobile":      v.Mobile,
 			"father_name": v.FatherName,
 			"mother_name": v.MotherName,
+			"status":      v.Status,
 		})
 	}
 
@@ -821,6 +846,21 @@ func GetElectionVoters(w http.ResponseWriter, r *http.Request) {
 		"count":   len(vlist),
 	}
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// IsVoterVerified checks if a voter is allowed to vote
+func IsVoterVerified(email, electionAddr string) bool {
+	if voterCollection == nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var v Voter
+	err := voterCollection.FindOne(ctx, bson.M{"email": email, "election_address": electionAddr}).Decode(&v)
+	if err != nil {
+		return false
+	}
+	return v.Status == "Verified"
 }
 
 func ResultMail(w http.ResponseWriter, r *http.Request) {
@@ -846,6 +886,9 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// AUDIT LOG
+	go LogAction(req.ElectionAddress, "ELECTION_ENDED", "System", fmt.Sprintf("Election '%s' ended. Winner: %s", req.ElectionName, req.WinnerCandidate))
+
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
@@ -864,8 +907,68 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subject := req.ElectionName + " - Election Results"
-	body := fmt.Sprintf(`<h2>Election Results</h2><p>The results of <b>%s</b> are out.</p><p><b>Winner:</b> %s</p><br><p>Thank you for participating.</p>`, req.ElectionName, req.WinnerCandidate)
+	// 1. Fetch Audit Logs
+	logs, err := GetElectionLogs(req.ElectionAddress)
+	if err != nil {
+		fmt.Printf("Error fetching logs for mail: %v\n", err)
+		// continue without logs if fail
+		logs = []AuditLog{}
+	}
+
+	// 2. Fetch Candidates for the table (need DB access)
+	// 2. Fetch Candidates from Blockchain (Source of Truth)
+	var candidates []map[string]interface{}
+
+	client, err := getClient()
+	if err != nil {
+		fmt.Printf("ResultMail: failed to connect to eth node: %v\n", err)
+	} else {
+		defer client.Close()
+		ethAddr := common.HexToAddress(req.ElectionAddress)
+		contract, err := bindings.NewElection(ethAddr, client)
+		if err != nil {
+			fmt.Printf("ResultMail: failed to bind contract: %v\n", err)
+		} else {
+			count, err := contract.GetNumOfCandidates(&bind.CallOpts{Context: context.Background()})
+			if err != nil {
+				fmt.Printf("ResultMail: failed to get candidate count: %v\n", err)
+			} else {
+				n := count.Int64()
+				for i := int64(0); i < n; i++ {
+					// GetCandidate returns: name, description, imageHash, voteCount, email, error
+					name, _, _, votes, _, err := contract.GetCandidate(&bind.CallOpts{Context: context.Background()}, big.NewInt(i))
+					if err != nil {
+						fmt.Printf("ResultMail: failed to get candidate %d: %v\n", i, err)
+						continue
+					}
+					candidates = append(candidates, map[string]interface{}{
+						"name":      name,
+						"voteCount": int(votes.Int64()),
+					})
+				}
+			}
+		}
+	}
+
+	// Fallback to DB if chain fetch failed entirely (optional, but keep for robustness if chain is down)
+	if len(candidates) == 0 && candidateCollection != nil {
+		fmt.Println("ResultMail: Warning - Chain fetch failed or empty, falling back to DB (votes may be 0/stale)")
+		curC, errC := candidateCollection.Find(ctx, bson.M{"electionAddress": req.ElectionAddress})
+		if errC == nil {
+			var rawCands []map[string]interface{}
+			_ = curC.All(ctx, &rawCands)
+			candidates = rawCands
+			curC.Close(ctx)
+		}
+	}
+
+	// 3. Generate Rich HTML Email
+	// 3. Generate Audit PDF
+	auditPDF, _ := GenerateAuditLogPDF(logs, req.ElectionName)
+
+	// 4. Generate Rich HTML Email
+	htmlBody := GenerateResultsEmailHTML(req.ElectionName, req.WinnerCandidate, candidates, logs)
+	subject := fmt.Sprintf("Results: %s - Winner Announced", req.ElectionName)
 
 	var sendErrs []string
 
@@ -873,18 +976,22 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 		if v.Email == "" {
 			continue
 		}
-		if err := sendEmail(v.Email, subject, body); err != nil {
+		// Send with attachment
+		err := sendEmailWithAttachment(v.Email, subject, htmlBody, "AuditLogs.pdf", auditPDF)
+		if err != nil {
 			sendErrs = append(sendErrs, fmt.Sprintf("%s: %v", v.Email, err))
 			fmt.Printf("sendEmail error for %s: %v\n", v.Email, err)
 		}
 	}
 
-	// winner mail
+	// winner mail (reuse rich body or custom? stick to simple for winner or same?)
+	// User asked for "after election ends everybody gets a copy of election logs"
+	// Winner is part of everybody usually, but let's give them the same rich context
 	if req.CandidateEmail != "" {
-		winnerBody := fmt.Sprintf(`<h2>Congratulations!</h2><p>You have won the <b>%s</b> election.</p><br><p>Best regards,<br/>Voting System</p>`, req.ElectionName)
-		if err := sendEmail(req.CandidateEmail, subject, winnerBody); err != nil {
+		// potentially customize subject for winner
+		winnerSubject := "You Won! " + subject
+		if err := sendEmail(req.CandidateEmail, winnerSubject, htmlBody); err != nil {
 			sendErrs = append(sendErrs, fmt.Sprintf("%s: %v", req.CandidateEmail, err))
-			fmt.Printf("sendEmail error for winner %s: %v\n", req.CandidateEmail, err)
 		}
 	}
 
@@ -900,4 +1007,131 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ApproveVoter Endpoint
+func ApproveVoter(w http.ResponseWriter, r *http.Request) {
+	withVoterCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
+	vars := mux.Vars(r)
+	voterID := vars["voterId"]
+
+	var req struct {
+		Status string `json:"status"` // Verified or Rejected
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.Status == "" {
+		req.Status = "Verified"
+	}
+
+	objID, _ := primitive.ObjectIDFromHex(voterID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := voterCollection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": bson.M{"status": req.Status}})
+	if err != nil {
+		http.Error(w, "Failed to update status", http.StatusInternalServerError)
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(VoterResponse{Status: "success", Message: "Voter status updated to " + req.Status})
+}
+
+// VerifyAndDeleteOTP checks OTP validity and deletes it if valid
+func VerifyAndDeleteOTP(email, otp string) bool {
+	if otpCollection == nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var otpDoc struct {
+		OTP       string             `bson:"otp"`
+		ExpiresAt primitive.DateTime `bson:"expiresAt"`
+	}
+	// find by email
+	err := otpCollection.FindOne(ctx, bson.M{"email": email}).Decode(&otpDoc)
+	if err != nil {
+		return false
+	} // not found
+
+	// check expiry
+	if time.Now().UTC().After(otpDoc.ExpiresAt.Time()) {
+		return false
+	}
+
+	// check match
+	if otpDoc.OTP != otp {
+		return false
+	}
+
+	// valid -> delete
+	otpCollection.DeleteMany(ctx, bson.M{"email": email})
+	return true
+}
+
+// GetVoterAnalytics returns the count of voters grouped by address (e.g. City)
+func GetVoterAnalytics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	vars := mux.Vars(r)
+	electionAddr := vars["address"] // matches /elections/{address}/analytics/geo
+
+	if voterCollection == nil {
+		http.Error(w, "DB not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	// Pipeline: Match Election -> Group by Address -> Count
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "election_address", Value: electionAddr}}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$address"},
+			{Key: "count", Value: bson.D{{Key: "$sum", Value: 1}}},
+		}}},
+		{{Key: "$sort", Value: bson.D{{Key: "count", Value: -1}}}}, // highest first
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cursor, err := voterCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		http.Error(w, "Aggregation failed", http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var results []struct {
+		Address string `bson:"_id" json:"address"`
+		Count   int    `bson:"count" json:"count"`
+	}
+	if err := cursor.All(ctx, &results); err != nil {
+		http.Error(w, "Cursor decode failed", http.StatusInternalServerError)
+		return
+	}
+
+	// Clean up empty addresses
+	final := []interface{}{}
+	for _, item := range results {
+		addr := item.Address
+		if addr == "" {
+			addr = "Unknown"
+		}
+		final = append(final, map[string]interface{}{
+			"region": addr,
+			"count":  item.Count,
+		})
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status": "success",
+		"data":   final,
+	})
+}

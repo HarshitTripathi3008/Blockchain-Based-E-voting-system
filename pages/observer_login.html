@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Election Commission Login - BlockVotes</title>
+  <link rel="stylesheet" href="/static/css/global.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
+    rel="stylesheet">
+  <script src="/static/js/ui.js"></script>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .login-card {
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="glass-card login-card fade-in">
+    <img src="/static/logo3.png" alt="Logo" style="width: 80px; margin-bottom: 1.5rem;" />
+    <h2 style="margin-bottom: 0.5rem; color: var(--primary-color);">Observer Portal</h2>
+    <p style="color: var(--text-muted); margin-bottom: 2rem;">Read-only access for election auditors</p>
+
+    <form id="observerForm" novalidate>
+      <div style="margin-bottom: 1.5rem;">
+        <input type="text" id="electionAddr" required placeholder="Election Address (0x...)"
+          style="font-family: monospace;" />
+      </div>
+      <div style="margin-bottom: 2rem;">
+        <input type="password" id="accessCode" placeholder="Access Code (Optional)" />
+      </div>
+      <button type="submit" id="accessBtn" class="btn btn-primary" style="width: 100%;">View Dashboard</button>
+    </form>
+
+    <div style="margin-top: 2rem; border-top: 1px solid var(--glass-border); padding-top: 1rem;">
+      <a href="company_login.html" style="color: var(--text-muted); font-size: 0.9rem; text-decoration: none;">
+        Election Commission Login</a>
+    </div>
+
+  </div>
+
+  <script>
+    function showError(msg) {
+      UI.toast(msg, 'error');
+    }
+
+    document.getElementById('observerForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      const addr = (document.getElementById('electionAddr').value || '').trim();
+      const code = (document.getElementById('accessCode').value || '').trim();
+      const btn = document.getElementById('accessBtn');
+
+      if (!addr) {
+        showError('Please enter a valid Election Address.');
+        return;
+      }
+
+      if (!addr.startsWith('0x') || addr.length !== 42) {
+        showError('Invalid Ethereum Address format.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Verifying...";
+
+      // Simulate verification/loading
+      setTimeout(() => {
+        // Set cookies for convenience
+        document.cookie = "address=" + encodeURIComponent(addr) + "; path=/";
+        document.cookie = "observer_mode=true; path=/";
+
+        window.location.href = `observer_dashboard.html?address=${encodeURIComponent(addr)}`;
+      }, 1000);
+    });
+  </script>
+</body>
+
+</html>

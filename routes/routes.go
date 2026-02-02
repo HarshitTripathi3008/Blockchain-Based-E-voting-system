@@ -44,6 +44,9 @@ func SetupRoutes() *mux.Router {
 	api.HandleFunc("/elections/{address}/candidates", controllers.GetElectionCandidates).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/vote", controllers.VoteCandidate).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/voters", controllers.GetElectionVoters).Methods(http.MethodGet, http.MethodOptions)
+	api.HandleFunc("/elections/dates", controllers.SetElectionDates).Methods(http.MethodPost, http.MethodOptions)                   // NEW
+	api.HandleFunc("/elections/{address}/metadata", controllers.GetElectionMetadata).Methods(http.MethodGet, http.MethodOptions)    // NEW
+	api.HandleFunc("/elections/{address}/analytics/geo", controllers.GetVoterAnalytics).Methods(http.MethodGet, http.MethodOptions) // NEW
 
 	// ----------------------------
 	// CANDIDATE ROUTES
@@ -58,18 +61,31 @@ func SetupRoutes() *mux.Router {
 	api.HandleFunc("/voters/verify-otp-register", controllers.VerifyOTPAndRegister).Methods(http.MethodPost, http.MethodOptions) // NEW
 	api.HandleFunc("/voter/authenticate", controllers.AuthenticateVoter).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters", controllers.GetAllVoters).Methods(http.MethodGet, http.MethodPost, http.MethodOptions)
+	api.HandleFunc("/voters/{voterId}/card", controllers.GenerateVoterID).Methods(http.MethodGet, http.MethodOptions)
+	api.HandleFunc("/voters/{voterId}/card/email", controllers.EmailVoterID).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters/{voterId}", controllers.UpdateVoter).Methods(http.MethodPut, http.MethodOptions)
 	api.HandleFunc("/voters/{voterId}", controllers.DeleteVoter).Methods(http.MethodDelete, http.MethodOptions)
+	api.HandleFunc("/voters/{voterId}/approve", controllers.ApproveVoter).Methods(http.MethodPost, http.MethodOptions) // NEW
 	api.HandleFunc("/voter/resultMail", controllers.ResultMail).Methods(http.MethodPost, http.MethodOptions)
 	// ----------------------------
 	// UPLOAD ROUTES
 	// ----------------------------
-	api.HandleFunc("/upload/cloudinary", controllers.UploadToCloudinary).Methods(http.MethodPost, http.MethodOptions)
+	// Unified hybrid upload route
+	api.HandleFunc("/upload/unified", controllers.UnifiedUploadHandler).Methods(http.MethodPost, http.MethodOptions)
+	// Kept for backward compatibility if needed, but pointing to unified
+	api.HandleFunc("/upload/cloudinary", controllers.UnifiedUploadHandler).Methods(http.MethodPost, http.MethodOptions)
+	api.HandleFunc("/upload/gdrive", controllers.UnifiedUploadHandler).Methods(http.MethodPost, http.MethodOptions)
 
 	// ----------------------------
 	// STATIC FILE SERVING
 	// ----------------------------
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
+
+	// Root handler serves homepage.html
+	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./pages/homepage.html")
+	})
+
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("./pages/")))
 
 	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -15,12 +15,12 @@ type UploadResponse struct {
 	URL     string `json:"url,omitempty"`
 }
 
-// UploadToCloudinary handles file upload to Cloudinary
-func UploadToCloudinary(w http.ResponseWriter, r *http.Request) {
+// UnifiedUploadHandler implements the hybrid storage logic
+func UnifiedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	// Safety recovery
 	defer func() {
 		if rec := recover(); rec != nil {
-			log.Printf("PANIC in UploadToCloudinary: %v", rec)
+			log.Printf("PANIC in UnifiedUploadHandler: %v", rec)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
 	}()
@@ -54,14 +54,33 @@ func UploadToCloudinary(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	log.Printf("Starting upload for file: %s", header.Filename)
+	// Detect Content-Type from header (usually reliable from browser)
+	mimeType := header.Header.Get("Content-Type")
+	log.Printf("Processing upload: %s (Type: %s)", header.Filename, mimeType)
 
-	// Upload using the utility
-	url, err := util.UploadToCloudinary(file, header.Filename)
-	if err != nil {
-		log.Printf("Cloudinary Upload Error: %v", err)
+	var url string
+	var uploadErr error
+
+	// Logic: Images/Videos/Audio -> Cloudinary, Else -> Google Drive
+	isMedia := false
+	if len(mimeType) >= 6 && (mimeType[:6] == "image/" || mimeType[:6] == "video/" || mimeType[:6] == "audio/") {
+		isMedia = true
+	}
+
+	if isMedia {
+		// Delegate to Cloudinary
+		log.Println("Delegating to Cloudinary...")
+		url, uploadErr = util.UploadToCloudinary(file, header.Filename)
+	} else {
+		// Delegate to Google Drive
+		log.Println("Delegating to Google Drive...")
+		url, uploadErr = util.UploadToGDrive(file, header.Filename)
+	}
+
+	if uploadErr != nil {
+		log.Printf("Upload Error: %v", uploadErr)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(UploadResponse{Status: "error", Message: "upload failed: " + err.Error()})
+		json.NewEncoder(w).Encode(UploadResponse{Status: "error", Message: "upload failed: " + uploadErr.Error()})
 		return
 	}
 

@@ -48,9 +48,7 @@ func main() {
 
 		privHex := os.Getenv("ETHEREUM_PRIVATE_KEY")
 		if privHex == "" {
-			// Fallback (WARNING: insecure for production, but kept for dev continuity if env missing)
-			log.Println("⚠️  ETHEREUM_PRIVATE_KEY not set in .env, using hardcoded fallback (INSECURE)")
-			privHex = "4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d"
+			log.Fatal("❌ ETHEREUM_PRIVATE_KEY not set in .env. Execution aborted for security.")
 		}
 
 		chainIDVal := int64(1337) // Default Ganache
@@ -110,6 +108,8 @@ func main() {
 	controllers.InitVoterCollection(client, dbName)
 	controllers.InitCandidateCollection(client, dbName)
 	controllers.InitOTPCollection(client, dbName)
+	controllers.InitAuditCollection(client, dbName)
+	controllers.InitMetadataCollection(client, dbName)
 	fmt.Println("✅ Initialized database collections")
 
 	// -----------------------------------------------------
