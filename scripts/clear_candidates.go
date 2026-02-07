@@ -103,4 +103,13 @@ func main() {
 	} else {
 		fmt.Printf("✅ Deleted %d Audit Log entries.\n", resAudit.DeletedCount)
 	}
+
+	// 5. Delete Election Metadata
+	metadataColl := db.Collection("election_metadata")
+	resMeta, err := metadataColl.DeleteMany(ctx, bson.M{})
+	if err != nil {
+		log.Printf("Failed to delete Election Metadata: %v", err)
+	} else {
+		fmt.Printf("✅ Deleted %d Election Metadata entries.\n", resMeta.DeletedCount)
+	}
 }

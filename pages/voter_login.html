@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/static/css/global.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
     rel="stylesheet">
-  <script src="/static/js/ui.js"></script>
+  <script src="/static/js/ui.js?v=2"></script>
   <style>
     body {
       display: flex;
@@ -47,9 +47,7 @@
   </div>
 
   <script>
-    async function safeJson(resp) {
-      try { return await resp.json(); } catch { return null; }
-    }
+
 
     // Toggle Logic Removed
     const loginForm = document.getElementById('voterLoginForm');
@@ -98,7 +96,7 @@
           body: JSON.stringify({ email, password })
         });
 
-        const json = await safeJson(resp);
+        const json = await UI.safeJson(resp);
 
         if (resp.ok && (json?.status === 'success' || json?.success === true)) {
           const data = json.data || json;
@@ -106,23 +104,8 @@
           if (data?.id) document.cookie = 'voter_id=' + encodeURIComponent(data.id) + '; path=/';
           document.cookie = 'voter_email=' + encodeURIComponent(email) + '; path=/';
 
-          const electionAddress = data?.election_address || json?.election_address;
-          if (electionAddress) {
-            document.cookie = 'address=' + encodeURIComponent(electionAddress) + '; path=/';
-            window.location.href = 'vote.html?address=' + encodeURIComponent(electionAddress);
-            return;
-          }
-
-          // fallback to blockchain check
-          const electionData = await checkElectionOnBlockchain(email);
-          if (electionData && electionData.address) {
-            document.cookie = 'address=' + encodeURIComponent(electionData.address) + '; path=/';
-            window.location.href = 'vote.html?address=' + encodeURIComponent(electionData.address);
-            return;
-          }
-
-          // fallback plain vote page
-          window.location.href = 'vote.html';
+          // Redirect to the Voter Dashboard to manage multiple elections
+          window.location.href = 'voter_dashboard.html';
           return;
         } else {
           UI.toast(json?.message || "Login failed", 'error');

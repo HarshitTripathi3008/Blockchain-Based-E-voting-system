@@ -5,11 +5,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Vote - BlockVotes</title>
+  <link rel="icon" type="image/png" href="/static/logo3.png">
   <link rel="stylesheet" href="/static/css/global.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
     rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
-  <script src="/static/js/ui.js"></script>
+  <script src="/static/js/ui.js?v=2"></script>
   <style>
     body {
       margin: 0;
@@ -251,13 +252,9 @@
 
   <script>
     // --- Utils ---
-    async function safeJson(resp) {
-      try { return await resp.json(); } catch { return null; }
-    }
+
 
     function getElectionAddress() {
-      const fromCookie = Cookies.get('address');
-      if (fromCookie) return fromCookie;
       const params = new URLSearchParams(window.location.search);
       return params.get('address') || '';
     }
@@ -288,7 +285,7 @@
         // Details
         const resp = await fetch(`/api/elections/${encodeURIComponent(address)}/details`, { headers: { 'Accept': 'application/json' } });
         if (resp.ok) {
-          const data = await safeJson(resp);
+          const data = await UI.safeJson(resp);
           document.getElementById('election-name').textContent = data?.data?.election_name || 'Election';
           document.getElementById('election-desc').textContent = data?.data?.election_desc || '';
         }
@@ -296,14 +293,14 @@
         // Stats
         const respCands = await fetch(`/api/elections/${encodeURIComponent(address)}/candidates`, { headers: { 'Accept': 'application/json' } });
         if (respCands.ok) {
-          const cData = await safeJson(respCands);
+          const cData = await UI.safeJson(respCands);
           const count = (cData.candidates || cData || []).length;
           document.getElementById('candidatesCount').textContent = count;
         }
 
         const respVoters = await fetch(`/api/elections/${encodeURIComponent(address)}/voters`, { headers: { 'Accept': 'application/json' } });
         if (respVoters.ok) {
-          const vData = await safeJson(respVoters);
+          const vData = await UI.safeJson(respVoters);
           const count = (vData.voters || vData || []).length;
           document.getElementById('votersCount').textContent = count;
         }
@@ -333,7 +330,12 @@
 
       try {
         const resp = await fetch(`/api/elections/${encodeURIComponent(address)}/candidates`, { headers: { 'Accept': 'application/json' } });
-        const data = await safeJson(resp);
+        const data = await UI.safeJson(resp);
+
+        if (!data) {
+          throw new Error("Failed to load candidates data");
+        }
+
         const candidates = data.candidates || data || [];
 
         document.getElementById('modalLoading').style.display = 'none';
@@ -407,7 +409,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, election_address: addr })
         });
-        const json = await safeJson(resp);
+        const json = await UI.safeJson(resp);
         if (resp.ok) {
           UI.toast(json?.message || "OTP Sent", "success");
           btn.textContent = "Resend OTP";
@@ -451,7 +453,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        const json = await safeJson(resp);
+        const json = await UI.safeJson(resp);
 
         if (resp.ok || json?.status === 'success' || json?.success === true) {
           UI.toast('Vote Cast Successfully!', 'success');
@@ -517,6 +519,13 @@
     function resolveVoterId(btnElement, callback) {
       const voterEmail = getVoterEmail();
       const address = getElectionAddress();
+      const storedId = Cookies.get('voter_id');
+
+      // Optimization: Use stored ID if available
+      if (storedId) {
+        callback(storedId);
+        return;
+      }
 
       btnElement.disabled = true;
       const originalText = btnElement.textContent;

@@ -27,18 +27,24 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+type VoterRegistration struct {
+	ElectionAddress string    `bson:"election_address" json:"election_address"`
+	Status          string    `bson:"status" json:"status"` // "Verified", "Pending"
+	RegisteredAt    time.Time `bson:"registered_at" json:"registered_at"`
+}
+
 type Voter struct {
-	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Email           string             `bson:"email" json:"email"`
-	Password        string             `bson:"password" json:"-"`
-	FullName        string             `bson:"full_name,omitempty" json:"full_name,omitempty"`
-	DOB             time.Time          `bson:"dob,omitempty" json:"dob,omitempty"`
-	Address         string             `bson:"address,omitempty" json:"address,omitempty"`
-	Mobile          string             `bson:"mobile,omitempty" json:"mobile,omitempty"`
-	FatherName      string             `bson:"father_name,omitempty" json:"father_name,omitempty"`
-	MotherName      string             `bson:"mother_name,omitempty" json:"mother_name,omitempty"`
-	ElectionAddress string             `bson:"election_address" json:"election_address"`
-	Status          string             `bson:"status,omitempty" json:"status"` // "Pending", "Verified", "Rejected"
+	ID            primitive.ObjectID  `bson:"_id,omitempty" json:"id"`
+	Email         string              `bson:"email" json:"email"`
+	Password      string              `bson:"password" json:"-"`
+	FullName      string              `bson:"full_name,omitempty" json:"full_name,omitempty"`
+	DOB           time.Time           `bson:"dob,omitempty" json:"dob,omitempty"`
+	Address       string              `bson:"address,omitempty" json:"address,omitempty"`
+	Mobile        string              `bson:"mobile,omitempty" json:"mobile,omitempty"`
+	FatherName    string              `bson:"father_name,omitempty" json:"father_name,omitempty"`
+	MotherName    string              `bson:"mother_name,omitempty" json:"mother_name,omitempty"`
+	PhotoURL      string              `bson:"photo_url,omitempty" json:"photo_url,omitempty"`
+	Registrations []VoterRegistration `bson:"registrations" json:"registrations"`
 }
 
 type VoterRequest struct {
@@ -50,6 +56,7 @@ type VoterRequest struct {
 	Mobile          string `json:"mobile,omitempty"`
 	FatherName      string `json:"father_name,omitempty"`
 	MotherName      string `json:"mother_name,omitempty"`
+	PhotoURL        string `json:"photo_url,omitempty"`
 	ElectionName    string `json:"election_name,omitempty"`
 	ElectionAddress string `json:"election_address,omitempty"`
 	CandidateID     int    `json:"candidate_id,omitempty"`
@@ -227,12 +234,13 @@ func SendOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	subject := "Your OTP for voter registration"
-	body := fmt.Sprintf(`<p>Your OTP for voter registration is <b>%s</b>. It expires in 10 minutes.</p><p>If you did not request this, ignore this email.</p>`, otp)
+	body := GenerateOTPEmail(otp)
+
 	if err := sendEmail(req.Email, subject, body); err != nil {
 		fmt.Printf("sendEmail error (SendOTP): %v\n", err)
 		// remove inserted OTP because email failed
 		_, _ = otpCollection.DeleteMany(ctx, bson.M{"email": req.Email})
-		http.Error(w, "failed to send otp email", http.StatusInternalServerError)
+		http.Error(w, "failed to send otp email: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -303,13 +311,10 @@ func VerifyOTPAndRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ensure email not already registered for same election
-	count, err := voterCollection.CountDocuments(ctx, bson.M{
-		"email":            req.Email,
-		"election_address": req.ElectionAddress,
-	})
+	// ensure email not already registered globally (for this flow)
+	count, err := voterCollection.CountDocuments(ctx, bson.M{"email": req.Email})
 	if err == nil && count > 0 {
-		http.Error(w, "voter with this email already registered for this election", http.StatusConflict)
+		http.Error(w, "Voter account already exists. Please login to join election.", http.StatusConflict)
 		return
 	}
 
@@ -328,15 +333,22 @@ func VerifyOTPAndRegister(w http.ResponseWriter, r *http.Request) {
 	dobTime, _ := parseDOB(req.DOB)
 
 	newVoter := Voter{
-		Email:           req.Email,
-		Password:        string(hashed),
-		FullName:        req.FullName,
-		DOB:             dobTime,
-		Mobile:          req.Mobile,
-		Address:         req.Address,
-		FatherName:      req.FatherName,
-		MotherName:      req.MotherName,
-		ElectionAddress: req.ElectionAddress,
+		Email:      req.Email,
+		Password:   string(hashed),
+		FullName:   req.FullName,
+		DOB:        dobTime,
+		Mobile:     req.Mobile,
+		Address:    req.Address,
+		FatherName: req.FatherName,
+		MotherName: req.MotherName,
+		PhotoURL:   req.PhotoURL,
+		Registrations: []VoterRegistration{
+			{
+				ElectionAddress: req.ElectionAddress,
+				Status:          "Verified",
+				RegisteredAt:    time.Now().UTC(),
+			},
+		},
 	}
 
 	if _, err := voterCollection.InsertOne(ctx, newVoter); err != nil {
@@ -347,15 +359,14 @@ func VerifyOTPAndRegister(w http.ResponseWriter, r *http.Request) {
 	// delete OTP record
 	_, _ = otpCollection.DeleteMany(ctx, bson.M{"email": req.Email})
 
-	// email password to voter (plaintext in email — consider password reset flow for production)
-	subject := "Your voter account credentials"
-	body := fmt.Sprintf(`<p>Hello %s,</p><p>Your voter account has been created for election <b>%s</b>.</p><p><b>Email:</b> %s<br/><b>Password:</b> %s</p><p>Please login and change your password.</p>`, req.FullName, req.ElectionAddress, req.Email, rawPassword)
+	// email password to voter
+	body := GenerateWelcomeEmail(req.FullName, req.Email, rawPassword, req.ElectionAddress)
+	subject := "Welcome to BlockVotes - Account Credentials"
 	if err := sendEmail(req.Email, subject, body); err != nil {
 		fmt.Printf("sendEmail error (password email): %v\n", err)
-		// do not fail the request — account created
 	}
 
-	_ = json.NewEncoder(w).Encode(VoterResponse{Status: "success", Message: "voter created; password emailed"})
+	_ = json.NewEncoder(w).Encode(VoterResponse{Status: "success", Message: "voter account created and verified"})
 }
 
 // ===== RegisterVoter (expanded) =====
@@ -414,10 +425,48 @@ func RegisterVoter(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// default password = email if none provided (existing behavior preserved)
+	// Check if already exists
+	var existing Voter
+	err := voterCollection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&existing)
+
+	if err == nil {
+		// Existing user: Link to new election if not already linked
+		for _, reg := range existing.Registrations {
+			if reg.ElectionAddress == req.ElectionAddress {
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Voter already registered for this election"})
+				return
+			}
+		}
+
+		// Add registration
+		newReg := VoterRegistration{
+			ElectionAddress: req.ElectionAddress,
+			Status:          "Pending", // Admin added, maybe auto-verify? Let's say Pending until approved or verified
+			RegisteredAt:    time.Now().UTC(),
+		}
+		_, err := voterCollection.UpdateOne(ctx, bson.M{"_id": existing.ID}, bson.M{"$push": bson.M{"registrations": newReg}})
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Failed to link voter to election"})
+			return
+		}
+
+		_ = json.NewEncoder(w).Encode(VoterResponse{
+			Status:  "success",
+			Message: "Existing voter added to this election.",
+			Data: map[string]interface{}{
+				"id":    existing.ID.Hex(),
+				"email": existing.Email,
+			},
+		})
+		return
+	}
+
+	// New User Logic
 	rawPassword := req.Password
 	if rawPassword == "" {
-		rawPassword = req.Email
+		rawPassword = req.Email // default
 	}
 	hashed, err := bcrypt.GenerateFromPassword([]byte(rawPassword), bcrypt.DefaultCost)
 	if err != nil {
@@ -427,51 +476,37 @@ func RegisterVoter(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newVoter := Voter{
-		Email:           req.Email,
-		Password:        string(hashed),
-		FullName:        req.FullName,
-		DOB:             dob,
-		Address:         req.Address,
-		Mobile:          req.Mobile,
-		FatherName:      req.FatherName,
-		MotherName:      req.MotherName,
-		ElectionAddress: req.ElectionAddress,
-		Status:          "Pending",
+		Email:      req.Email,
+		Password:   string(hashed),
+		FullName:   req.FullName,
+		DOB:        dob,
+		Address:    req.Address,
+		Mobile:     req.Mobile,
+		FatherName: req.FatherName,
+		MotherName: req.MotherName,
+		PhotoURL:   req.PhotoURL,
+		Registrations: []VoterRegistration{
+			{
+				ElectionAddress: req.ElectionAddress,
+				Status:          "Pending",
+				RegisteredAt:    time.Now().UTC(),
+			},
+		},
 	}
 
 	result, err := voterCollection.InsertOne(ctx, newVoter)
 	if err != nil {
-		if we, ok := err.(mongo.WriteException); ok {
-			for _, e := range we.WriteErrors {
-				if e.Code == 11000 {
-					w.WriteHeader(http.StatusConflict)
-					_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Voter already exists"})
-					return
-				}
-			}
-		}
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Voter could not be added"})
 		return
 	}
 
-	var created Voter
-	_ = voterCollection.FindOne(ctx, bson.M{"_id": result.InsertedID}).Decode(&created)
-
-	// Return minimal info (no password) + created fields
 	_ = json.NewEncoder(w).Encode(VoterResponse{
 		Status:  "success",
-		Message: "Voter added successfully.",
+		Message: "Voter account created and added to election.",
 		Data: map[string]interface{}{
-			"id":            created.ID.Hex(),
-			"email":         created.Email,
-			"full_name":     created.FullName,
-			"dob":           created.DOB.Format("2006-01-02"),
-			"address":       created.Address,
-			"mobile":        created.Mobile,
-			"father_name":   created.FatherName,
-			"mother_name":   created.MotherName,
-			"election_addr": created.ElectionAddress,
+			"id":    result.InsertedID,
+			"email": req.Email,
 		},
 	})
 }
@@ -519,14 +554,16 @@ func AuthenticateVoter(w http.ResponseWriter, r *http.Request) {
 		Status:  "success",
 		Message: "voter authenticated",
 		Data: map[string]interface{}{
-			"id":               voterInfo.ID.Hex(),
-			"election_address": voterInfo.ElectionAddress,
-			"full_name":        voterInfo.FullName,
-			"mobile":           voterInfo.Mobile,
+			"id":            voterInfo.ID.Hex(),
+			"email":         voterInfo.Email,
+			"full_name":     voterInfo.FullName,
+			"mobile":        voterInfo.Mobile,
+			"registrations": voterInfo.Registrations,
 		},
 	})
 }
 
+// ===== GetAllVoters (returns expanded fields) =====
 // ===== GetAllVoters (returns expanded fields) =====
 func GetAllVoters(w http.ResponseWriter, r *http.Request) {
 	withVoterCORS(w)
@@ -547,16 +584,18 @@ func GetAllVoters(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&req)
 		electionAddress = req.ElectionAddress
 	}
-	if electionAddress == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "election_address is required"})
-		return
+
+	// Build Query
+	filter := bson.M{}
+	if electionAddress != "" {
+		// Filter voters who have a registration for this election
+		filter = bson.M{"registrations.election_address": electionAddress}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cursor, err := voterCollection.Find(ctx, bson.M{"election_address": electionAddress})
+	cursor, err := voterCollection.Find(ctx, filter)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Error fetching voters"})
@@ -578,6 +617,18 @@ func GetAllVoters(w http.ResponseWriter, r *http.Request) {
 		if !v.DOB.IsZero() {
 			dobStr = v.DOB.Format("2006-01-02")
 		}
+
+		// determine status for this specific election if filtered
+		status := "Registered" // Default for global view
+		if electionAddress != "" {
+			for _, reg := range v.Registrations {
+				if reg.ElectionAddress == electionAddress {
+					status = reg.Status
+					break
+				}
+			}
+		}
+
 		vlist = append(vlist, map[string]interface{}{
 			"id":          id,
 			"email":       v.Email,
@@ -587,6 +638,7 @@ func GetAllVoters(w http.ResponseWriter, r *http.Request) {
 			"mobile":      v.Mobile,
 			"father_name": v.FatherName,
 			"mother_name": v.MotherName,
+			"status":      status, // Add status to response
 		})
 	}
 
@@ -594,7 +646,7 @@ func GetAllVoters(w http.ResponseWriter, r *http.Request) {
 		"status":  "success",
 		"message": "voters list found",
 		"voters":  vlist,
-		"data":    map[string]interface{}{"voters": vlist},
+		"data":    map[string]interface{}{"voters": vlist}, // Keep both for compatibility
 		"count":   len(vlist),
 	}
 	_ = json.NewEncoder(w).Encode(resp)
@@ -681,6 +733,9 @@ func UpdateVoter(w http.ResponseWriter, r *http.Request) {
 	if req.MotherName != "" {
 		update["mother_name"] = req.MotherName
 	}
+	if req.PhotoURL != "" {
+		update["photo_url"] = req.PhotoURL
+	}
 
 	if len(update) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -741,6 +796,116 @@ func DeleteVoter(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = json.NewEncoder(w).Encode(VoterResponse{Status: "success", Message: "voter deleted successfully"})
+}
+
+// ===== NEW: JoinElection =====
+func JoinElection(w http.ResponseWriter, r *http.Request) {
+	withVoterCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Expects { "voter_id": "...", "election_address": "..." }
+	var req struct {
+		VoterID         string `json:"voter_id"`
+		ElectionAddress string `json:"election_address"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Invalid body"})
+		return
+	}
+
+	if req.VoterID == "" || req.ElectionAddress == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "voter_id and election_address required"})
+		return
+	}
+
+	objID, err := primitive.ObjectIDFromHex(req.VoterID)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Invalid voter_id"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Check if already registered
+	var voter Voter
+	if err := voterCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&voter); err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Voter not found"})
+		return
+	}
+
+	for _, reg := range voter.Registrations {
+		if reg.ElectionAddress == req.ElectionAddress {
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Already joined this election"})
+			return
+		}
+	}
+
+	// Add registration
+	newReg := VoterRegistration{
+		ElectionAddress: req.ElectionAddress,
+		Status:          "Verified", // Self-join implies verified if logged in? Or maybe Pending? Let's say Verified for simplicity of UX now.
+		RegisteredAt:    time.Now().UTC(),
+	}
+
+	_, err = voterCollection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$push": bson.M{"registrations": newReg}})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Failed to join election"})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(VoterResponse{Status: "success", Message: "Successfully joined election"})
+}
+
+// ===== NEW: GetVoterElections =====
+func GetVoterElections(w http.ResponseWriter, r *http.Request) {
+	withVoterCORS(w)
+	if r.Method == http.MethodGet {
+		// Expect ?voter_id=...
+		voterID := r.URL.Query().Get("voter_id")
+		if voterID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "voter_id required"})
+			return
+		}
+
+		objID, err := primitive.ObjectIDFromHex(voterID)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Invalid voter_id"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		var voter Voter
+		if err := voterCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&voter); err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Voter not found"})
+			return
+		}
+
+		_ = json.NewEncoder(w).Encode(VoterResponse{
+			Status: "success",
+			Data:   voter.Registrations,
+		})
+		return
+	}
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
 // sendEmail using SendGrid API
@@ -805,7 +970,8 @@ func GetElectionVoters(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cursor, err := voterCollection.Find(ctx, bson.M{"election_address": electionAddress})
+	// Query nested array
+	cursor, err := voterCollection.Find(ctx, bson.M{"registrations.election_address": electionAddress})
 	if err != nil {
 		http.Error(w, "Failed to fetch voters: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -818,13 +984,23 @@ func GetElectionVoters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// build response with expanded fields (same shape as GetAllVoters)
+	// build response
 	vlist := make([]map[string]interface{}, 0, len(voters))
 	for _, v := range voters {
 		var dobStr string
 		if !v.DOB.IsZero() {
 			dobStr = v.DOB.Format("2006-01-02")
 		}
+
+		// Find status for this election
+		status := "Unknown"
+		for _, reg := range v.Registrations {
+			if reg.ElectionAddress == electionAddress {
+				status = reg.Status
+				break
+			}
+		}
+
 		vlist = append(vlist, map[string]interface{}{
 			"id":          v.ID.Hex(),
 			"email":       v.Email,
@@ -834,7 +1010,7 @@ func GetElectionVoters(w http.ResponseWriter, r *http.Request) {
 			"mobile":      v.Mobile,
 			"father_name": v.FatherName,
 			"mother_name": v.MotherName,
-			"status":      v.Status,
+			"status":      status,
 		})
 	}
 
@@ -855,12 +1031,24 @@ func IsVoterVerified(email, electionAddr string) bool {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// Find voter who has this election registration
 	var v Voter
-	err := voterCollection.FindOne(ctx, bson.M{"email": email, "election_address": electionAddr}).Decode(&v)
+	err := voterCollection.FindOne(ctx, bson.M{
+		"email":                          email,
+		"registrations.election_address": electionAddr,
+	}).Decode(&v)
+
 	if err != nil {
 		return false
 	}
-	return v.Status == "Verified"
+
+	for _, reg := range v.Registrations {
+		if reg.ElectionAddress == electionAddr {
+			return reg.Status == "Verified"
+		}
+	}
+	return false
 }
 
 func ResultMail(w http.ResponseWriter, r *http.Request) {
@@ -892,7 +1080,7 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	cursor, err := voterCollection.Find(ctx, bson.M{"election_address": req.ElectionAddress})
+	cursor, err := voterCollection.Find(ctx, bson.M{"registrations.election_address": req.ElectionAddress})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Error fetching voters: " + err.Error()})
@@ -1088,9 +1276,9 @@ func GetVoterAnalytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Pipeline: Match Election -> Group by Address -> Count
+	// Pipeline: Match Election in Registrations -> Group by Address -> Count
 	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.D{{Key: "election_address", Value: electionAddr}}}},
+		{{Key: "$match", Value: bson.D{{Key: "registrations.election_address", Value: electionAddr}}}},
 		{{Key: "$group", Value: bson.D{
 			{Key: "_id", Value: "$address"},
 			{Key: "count", Value: bson.D{{Key: "$sum", Value: 1}}},
@@ -1133,5 +1321,92 @@ func GetVoterAnalytics(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status": "success",
 		"data":   final,
+	})
+}
+
+// AddVotersToElection allows Admin to bulk add existing voters to an election
+func AddVotersToElection(w http.ResponseWriter, r *http.Request) {
+	withVoterCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	electionAddr := vars["address"]
+	if electionAddr == "" {
+		http.Error(w, "Election address required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		VoterIDs []string `json:"voter_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Invalid body"})
+		return
+	}
+
+	if len(req.VoterIDs) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "No voter IDs provided"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	successCount := 0
+	alreadyCount := 0
+	errCount := 0
+
+	for _, vid := range req.VoterIDs {
+		objID, err := primitive.ObjectIDFromHex(vid)
+		if err != nil {
+			errCount++
+			continue
+		}
+
+		// Check if already registered for this election
+		// We use $addToSet logic manually or via check to prevent duplicates
+		count, _ := voterCollection.CountDocuments(ctx, bson.M{
+			"_id":                            objID,
+			"registrations.election_address": electionAddr,
+		})
+
+		if count > 0 {
+			alreadyCount++
+			continue
+		}
+
+		// Add registration
+		newReg := VoterRegistration{
+			ElectionAddress: electionAddr,
+			Status:          "Verified", // Admin added = Verified
+			RegisteredAt:    time.Now().UTC(),
+		}
+
+		_, err = voterCollection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$push": bson.M{"registrations": newReg}})
+		if err != nil {
+			errCount++
+		} else {
+			successCount++
+		}
+	}
+
+	msg := fmt.Sprintf("Added %d voters. %d already in election. %d errors.", successCount, alreadyCount, errCount)
+	_ = json.NewEncoder(w).Encode(VoterResponse{
+		Status:  "success",
+		Message: msg,
+		Data: map[string]interface{}{
+			"added":   successCount,
+			"skipped": alreadyCount,
+			"errors":  errCount,
+		},
 	})
 }

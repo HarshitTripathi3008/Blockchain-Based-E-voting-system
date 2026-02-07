@@ -62,17 +62,12 @@ func EnsureMetadata(electionAddr string) {
 		fmt.Printf("✅ Created metadata for %s (Expires: %s)\n", electionAddr, newMeta.EndDate)
 
 	case nil:
-		// Exists - Check if expired
-		if now.After(meta.EndDate) {
-			// Auto-extend for dev convenience
-			update := bson.M{
-				"$set": bson.M{
-					"end_date": now.Add(defaultDuration),
-					"status":   "ONGOING",
-				},
-			}
-			metadataCollection.UpdateOne(ctx, bson.M{"election_address": electionAddr}, update)
-			fmt.Printf("🔄 Auto-extended expired election %s to %s\n", electionAddr, now.Add(defaultDuration))
+		// Exists - Check if expired (Strict check, no auto-extend)
+		if now.After(meta.EndDate) && meta.Status != "ENDED" {
+			// Mark as ENDED if technically expired but not marked yet?
+			// Or just leave it as ONGOING but IsElectionActive will return false.
+			// Let's leave it, but ensure we DON'T extend.
+			fmt.Printf("ℹ️ Election %s is past EndDate (%s)\n", electionAddr, meta.EndDate)
 		}
 	}
 }
@@ -97,12 +92,8 @@ func IsElectionActive(electionAddr string) (bool, string) {
 	if now.Before(meta.StartDate) {
 		return false, fmt.Sprintf("Election has not started yet. Starts at %s UTC", meta.StartDate.Format("2006-01-02 15:04"))
 	}
-	if now.After(meta.EndDate) {
-		// Auto-recovery for expired elections in dev environment
-		fmt.Printf("⚠️ Election %s expired. Auto-extending...\n", electionAddr)
-		newEnd := now.Add(7 * 24 * time.Hour)
-		_, _ = metadataCollection.UpdateOne(ctx, bson.M{"election_address": electionAddr}, bson.M{"$set": bson.M{"end_date": newEnd, "status": "ONGOING"}})
-		return true, "" // Allow voting now
+	if now.After(meta.EndDate) || meta.Status == "ENDED" {
+		return false, "Election has ended."
 	}
 	return true, ""
 }
@@ -198,5 +189,75 @@ func GetElectionMetadata(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status": "success",
 		"data":   meta,
+	})
+}
+
+// EndElection immediately stops an election
+func EndElection(w http.ResponseWriter, r *http.Request) {
+	writeJSONHeader(w)
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	addr := vars["address"]
+	if addr == "" {
+		respondError(w, http.StatusBadRequest, "Address required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Update Status=ENDED and EndDate=Now
+	update := bson.M{
+		"$set": bson.M{
+			"status":   "ENDED",
+			"end_date": time.Now().UTC(),
+		},
+	}
+	_, err := metadataCollection.UpdateOne(ctx, bson.M{"election_address": addr}, update)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to end election")
+		return
+	}
+
+	// AUDIT
+	go LogAction(addr, "ELECTION_ENDED", "Admin", "Manually ended election via API")
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "success", "message": "Election ended successfully"})
+}
+
+// GetAllElections returns a list of all elections (for Admin Dashboard)
+func GetAllElections(w http.ResponseWriter, r *http.Request) {
+	writeJSONHeader(w)
+	if metadataCollection == nil {
+		respondError(w, http.StatusInternalServerError, "DB not ready")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Find all, sort by StartDate desc
+	opts := options.Find().SetSort(bson.M{"start_date": -1})
+	cursor, err := metadataCollection.Find(ctx, bson.M{}, opts)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Error fetching elections")
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var elections []ElectionMetadata
+	if err = cursor.All(ctx, &elections); err != nil {
+		respondError(w, http.StatusInternalServerError, "Error decoding elections")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status": "success",
+		"data":   elections,
+		"count":  len(elections),
 	})
 }

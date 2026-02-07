@@ -10,7 +10,7 @@
     rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="/static/js/ui.js"></script>
+  <script src="/static/js/ui.js?v=2"></script>
   <style>
     .layout {
       display: flex;
@@ -158,9 +158,7 @@
     // --- utility helpers (safe JSON parsing) ---
     let resultsChart = null;
 
-    async function safeJson(resp) {
-      try { return await resp.json(); } catch { return null; }
-    }
+
 
     function getElectionAddress() {
       const cookie = Cookies.get('address');
@@ -194,7 +192,7 @@
         // election details
         const respDetails = await fetch(`/api/elections/${encoded}/details`, { headers: { 'Accept': 'application/json' } });
         if (respDetails.ok) {
-          const body = await safeJson(respDetails);
+          const body = await UI.safeJson(respDetails);
           const electionName = body?.data?.election_name || body?.election_name || "Unnamed election";
           const electionDesc = body?.data?.election_desc || body?.election_desc || "";
           document.getElementById('electionName').textContent = electionName;

@@ -10,6 +10,8 @@ A secure, transparent, and decentralized electronic voting system built with Go,
 *   **Real-time Dashboard:** Monitoring of election status and results.
 *   **Audit Trail:** Comprehensive audit logs stored in MongoDB and hash references on Blockchain.
 *   **Email Notifications:** Integrated email service for OTPs and election updates.
+*   **Voter ID Generation:** Auto-generates PDF Voter IDs with QR code and secure Photo.
+*   **Admin Tools:** Database reset, global voter management, and candidate tracking.
 
 ## 🛠️ Tech Stack
 
@@ -19,6 +21,8 @@ A secure, transparent, and decentralized electronic voting system built with Go,
 *   **Routing:** [Gorilla Mux](https://github.com/gorilla/mux)
 *   **Ethereum Client:** [Go-Ethereum (geth)](https://geth.ethereum.org/)
 *   **Frontend:** HTML/CSS/JS (served from `pages/` and `static/`)
+*   **Image Storage:** Cloudinary
+*   **PDF Generation:** gofpdf
 
 ## 📋 Prerequisites
 
@@ -61,6 +65,9 @@ Before running the application, ensure you have the following installed:
     # Email Configuration
     EMAIL=<YOUR_EMAIL_FOR_SENDING_NOTIFICATIONS>
     PASSWORD=<YOUR_EMAIL_APP_PASSWORD>
+
+    # Cloudinary Configuration (For Images)
+    CLOUDINARY_URL=<YOUR_CLOUDINARY_URL>
     ```
 
 4.  **Prepare Smart Contracts**

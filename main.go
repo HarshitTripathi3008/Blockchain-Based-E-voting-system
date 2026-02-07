@@ -63,6 +63,10 @@ func main() {
 		}
 		log.Printf("🏗️ Contract deployed at: %s | tx: %s", addr.Hex(), tx.Hash().Hex())
 
+		// Update env variable for the current running process so controllers use the new contract
+		os.Setenv("FACTORY_CONTRACT_ADDRESS", addr.Hex())
+		log.Printf("🔄 Updated process env FACTORY_CONTRACT_ADDRESS to: %s", addr.Hex())
+
 		// Optional: Update .env file with new address (if you want to automate it fully)
 		// For now, we log it clearly.
 	}
@@ -83,7 +87,7 @@ func main() {
 		mongoURI = "mongodb://localhost:27017"
 	}
 
-	connectCtx, connectCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	connectCtx, connectCancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer connectCancel()
 
 	clientOpts := options.Client().ApplyURI(mongoURI)
@@ -124,9 +128,9 @@ func main() {
 	server := &http.Server{
 		Addr:         ":" + port,
 		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  120 * time.Second,
+		WriteTimeout: 120 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	go func() {

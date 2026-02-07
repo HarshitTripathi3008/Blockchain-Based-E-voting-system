@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
     rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
-  <script src="/static/js/ui.js"></script>
+  <script src="/static/js/ui.js?v=2"></script>
   <style>
     .layout {
       display: flex;
@@ -166,15 +166,11 @@
   </div>
 
   <script>
-    async function safeJson(response) {
-      try { return await response.json(); } catch { return null; }
-    }
+
 
     function getElectionAddress() {
-      const fromCookie = Cookies.get('address');
-      if (fromCookie) return fromCookie;
       const params = new URLSearchParams(window.location.search);
-      return params.get('address') || '';
+      return Cookies.get('address') || '';
     }
 
     function escapeHtml(text) {
@@ -272,6 +268,10 @@
           fd.append('file', fileInput.files[0]);
           const uploadResp = await fetch('/api/upload/cloudinary', { method: 'POST', body: fd });
           const uploadJson = await uploadResp.json();
+
+          if (!uploadResp.ok || uploadJson.status === 'error') {
+            throw new Error(uploadJson.message || 'Image upload failed');
+          }
           imageUrl = uploadJson.secure_url || uploadJson.url || '';
         }
 
@@ -299,7 +299,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        const json = await safeJson(resp);
+        const json = await UI.safeJson(resp);
 
         if (resp.ok || json?.status === 'success' || json?.success === true) {
           UI.toast('Candidate Registered Successfully!', 'success');

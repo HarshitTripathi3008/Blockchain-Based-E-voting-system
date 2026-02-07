@@ -3,37 +3,23 @@
  */
 
 const UI = {
+    // Safe JSON Parser
+    safeJson: async (resp) => {
+        try { return await resp.json(); } catch (err) { console.error("JSON Parse Error:", err); return null; }
+    },
+
     // Show Toast Notification
     toast: (message, type = 'info') => {
-        // Create container if not exists
         let container = document.getElementById('toast-container');
         if (!container) {
             container = document.createElement('div');
             container.id = 'toast-container';
-            container.style.cssText = `
-                position: fixed;
-                bottom: 2rem;
-                right: 2rem;
-                z-index: 10000;
-                display: flex;
-                flex-direction: column;
-                gap: 1rem;
-            `;
             document.body.appendChild(container);
         }
 
-        // Create notification
         const toast = document.createElement('div');
-        toast.className = `glass-card fade-in`;
-        toast.style.cssText = `
-            min-width: 300px;
-            padding: 1rem;
-            border-left: 4px solid ${type === 'error' ? 'var(--error-color)' : type === 'success' ? 'var(--success-color)' : 'var(--primary-color)'};
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        `;
+        const typeClass = type === 'error' ? 'toast-error' : type === 'success' ? 'toast-success' : '';
+        toast.className = `glass-card fade-in toast-notification ${typeClass}`;
 
         toast.innerHTML = `
             <span>${message}</span>
@@ -42,7 +28,6 @@ const UI = {
 
         container.appendChild(toast);
 
-        // Auto remove
         setTimeout(() => {
             toast.style.opacity = '0';
             toast.style.transform = 'translateY(10px)';

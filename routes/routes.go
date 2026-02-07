@@ -33,7 +33,9 @@ func SetupRoutes() *mux.Router {
 	// ----------------------------
 	// COMPANY ROUTES
 	// ----------------------------
+	api.HandleFunc("/admin/clear-database", controllers.ClearDatabase).Methods(http.MethodPost, http.MethodOptions) // NEW
 	api.HandleFunc("/company/register", controllers.CreateCompany).Methods(http.MethodPost, http.MethodOptions)
+
 	api.HandleFunc("/company/authenticate", controllers.AuthenticateCompany).Methods(http.MethodPost, http.MethodOptions)
 
 	// ----------------------------
@@ -44,9 +46,11 @@ func SetupRoutes() *mux.Router {
 	api.HandleFunc("/elections/{address}/candidates", controllers.GetElectionCandidates).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/vote", controllers.VoteCandidate).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/voters", controllers.GetElectionVoters).Methods(http.MethodGet, http.MethodOptions)
-	api.HandleFunc("/elections/dates", controllers.SetElectionDates).Methods(http.MethodPost, http.MethodOptions)                   // NEW
-	api.HandleFunc("/elections/{address}/metadata", controllers.GetElectionMetadata).Methods(http.MethodGet, http.MethodOptions)    // NEW
-	api.HandleFunc("/elections/{address}/analytics/geo", controllers.GetVoterAnalytics).Methods(http.MethodGet, http.MethodOptions) // NEW
+	api.HandleFunc("/elections/dates", controllers.SetElectionDates).Methods(http.MethodPost, http.MethodOptions)
+	api.HandleFunc("/elections/{address}/metadata", controllers.GetElectionMetadata).Methods(http.MethodGet, http.MethodOptions)
+	api.HandleFunc("/elections/{address}/analytics/geo", controllers.GetVoterAnalytics).Methods(http.MethodGet, http.MethodOptions)
+	api.HandleFunc("/elections/{address}/end", controllers.EndElection).Methods(http.MethodPost, http.MethodOptions) // NEW
+	api.HandleFunc("/elections", controllers.GetAllElections).Methods(http.MethodGet, http.MethodOptions)            // NEW
 
 	// ----------------------------
 	// CANDIDATE ROUTES
@@ -57,15 +61,18 @@ func SetupRoutes() *mux.Router {
 	// VOTER ROUTES
 	// ----------------------------
 	api.HandleFunc("/voters/register", controllers.RegisterVoter).Methods(http.MethodPost, http.MethodOptions)
-	api.HandleFunc("/voters/send-otp", controllers.SendOTP).Methods(http.MethodPost, http.MethodOptions)                         // NEW
-	api.HandleFunc("/voters/verify-otp-register", controllers.VerifyOTPAndRegister).Methods(http.MethodPost, http.MethodOptions) // NEW
+	api.HandleFunc("/voters/send-otp", controllers.SendOTP).Methods(http.MethodPost, http.MethodOptions)
+	api.HandleFunc("/voters/verify-otp-register", controllers.VerifyOTPAndRegister).Methods(http.MethodPost, http.MethodOptions)
+	api.HandleFunc("/voters/join", controllers.JoinElection).Methods(http.MethodPost, http.MethodOptions)             // NEW
+	api.HandleFunc("/voters/me/elections", controllers.GetVoterElections).Methods(http.MethodGet, http.MethodOptions) // NEW
 	api.HandleFunc("/voter/authenticate", controllers.AuthenticateVoter).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters", controllers.GetAllVoters).Methods(http.MethodGet, http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters/{voterId}/card", controllers.GenerateVoterID).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/voters/{voterId}/card/email", controllers.EmailVoterID).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters/{voterId}", controllers.UpdateVoter).Methods(http.MethodPut, http.MethodOptions)
 	api.HandleFunc("/voters/{voterId}", controllers.DeleteVoter).Methods(http.MethodDelete, http.MethodOptions)
-	api.HandleFunc("/voters/{voterId}/approve", controllers.ApproveVoter).Methods(http.MethodPost, http.MethodOptions) // NEW
+	api.HandleFunc("/voters/{voterId}/approve", controllers.ApproveVoter).Methods(http.MethodPost, http.MethodOptions)              // NEW
+	api.HandleFunc("/elections/{address}/voters/add", controllers.AddVotersToElection).Methods(http.MethodPost, http.MethodOptions) // NEW BULK IMPORT
 	api.HandleFunc("/voter/resultMail", controllers.ResultMail).Methods(http.MethodPost, http.MethodOptions)
 	// ----------------------------
 	// UPLOAD ROUTES

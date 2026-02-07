@@ -5,12 +5,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Election Commission Dashboard - BlockVotes</title>
+  <link rel="icon" type="image/png" href="/static/logo3.png">
   <link rel="stylesheet" href="/static/css/global.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
     rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="/static/js/ui.js"></script>
+  <script src="/static/js/ui.js?v=2"></script>
   <style>
     .layout {
       display: flex;
@@ -88,6 +89,60 @@
       height: 400px;
       position: relative;
     }
+
+    /* Table Styles for Multi-Election View */
+    .table-container {
+      overflow-x: auto;
+      background: var(--glass-bg);
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 1rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    th {
+      background: rgba(108, 92, 231, 0.1);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 50px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .status-ongoing {
+      background: rgba(0, 184, 148, 0.2);
+      color: #00b894;
+    }
+
+    .status-ended {
+      background: rgba(214, 48, 49, 0.2);
+      color: #ff7675;
+    }
+
+    .status-scheduled {
+      background: rgba(253, 203, 110, 0.2);
+      color: #ffeaa7;
+    }
   </style>
 </head>
 
@@ -101,11 +156,18 @@
       </div>
       <nav style="flex: 1;">
         <button id="dashboardBtn" class="nav-btn active">Dashboard</button>
-        <button id="candidatesBtn" class="nav-btn">Candidate List</button>
-        <button id="votersBtn" class="nav-btn">Voter List</button>
+        <button id="candidatesBtn" class="nav-btn detail-view-only" style="display:none;">Candidate List</button>
+        <button id="votersBtn" class="nav-btn detail-view-only" style="display:none;">Voter List</button>
         <button id="createBtn" class="nav-btn">Create Election</button>
+        <!-- New buttons -->
+        <div style="margin-top: auto; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1);">
+          <button onclick="confirmClearDatabase()" class="nav-btn"
+            style="width:100%; text-align:left; background: rgba(220, 53, 69, 0.1); color: #ff6b6b; border: 1px solid rgba(220, 53, 69, 0.3);">
+            Reset Database
+          </button>
+        </div>
       </nav>
-      <button id="logoutBtn" class="nav-btn" style="color: var(--error-color); margin-top: auto;">Logout</button>
+      <button id="logoutBtn" class="nav-btn" style="color: var(--error-color); margin-top: 0.5rem;">Logout</button>
     </aside>
 
     <main class="main-content">
@@ -120,44 +182,76 @@
         </div>
       </div>
 
-      <div class="glass-card" style="margin-bottom: 2rem;">
-        <h3 style="margin-bottom: 0.5rem;">Current Election</h3>
-        <h1 id="electionName" style="color: var(--accent-color);">—</h1>
-        <p id="electionDesc" style="color: var(--text-muted); margin-top: 0.5rem;">—</p>
-      </div>
-
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-label">Total Candidates</div>
-          <div id="candidatesCount" class="stat-val">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Total Voters</div>
-          <div id="votersCount" class="stat-val">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Total Votes Cast</div>
-          <div id="votesCount" class="stat-val">—</div>
-        </div>
-      </div>
-
-      <!-- Charts Section -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
-        <div class="chart-container fade-in">
-          <h3 style="margin-bottom: 1rem;">Live Results</h3>
-          <canvas id="resultsChart"></canvas>
-        </div>
-        <div class="chart-container fade-in">
-          <h3 style="margin-bottom: 1rem;">Turnout Percentage</h3>
-          <canvas id="turnoutChart"></canvas>
+      <!-- VIEW: ALL ELECTIONS (Default if no address) -->
+      <div id="allElectionsView" style="display: none;">
+        <h3 style="margin-bottom: 1rem;">All Campaigns</h3>
+        <div class="table-container">
+          <table id="electionsTable">
+            <thead>
+              <tr>
+                <th>Election Address</th>
+                <th>Status</th>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="electionsTableBody">
+              <!-- populated by JS -->
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div style="display: flex; gap: 1rem;">
-        <button id="viewCandidates" class="btn btn-outline">View Candidates</button>
-        <button id="manageVoters" class="btn btn-outline">Manage Voters</button>
-        <button id="endElection" class="btn" style="background: var(--error-color); color: white; border: none;">End
-          Election & Mail Results</button>
+      <!-- VIEW: SINGLE ELECTION DETAIL -->
+      <div id="singleElectionView" style="display: none;">
+        <button onclick="window.location.href='company_dashboard.html'" class="btn btn-sm btn-outline"
+          style="margin-bottom: 1rem;">&larr; Back to All Elections</button>
+
+        <div class="glass-card" style="margin-bottom: 2rem;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <h3 style="margin-bottom: 0.5rem;">Current Election</h3>
+              <h1 id="electionName" style="color: var(--accent-color);">—</h1>
+              <p id="electionDesc" style="color: var(--text-muted); margin-top: 0.5rem;">—</p>
+            </div>
+            <div id="electionStatusBadge" class="status-badge status-ongoing">LOADING</div>
+          </div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Candidates</div>
+            <div id="candidatesCount" class="stat-val">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Voters</div>
+            <div id="votersCount" class="stat-val">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Votes Cast</div>
+            <div id="votesCount" class="stat-val">—</div>
+          </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+          <div class="chart-container fade-in">
+            <h3 style="margin-bottom: 1rem;">Live Results</h3>
+            <canvas id="resultsChart"></canvas>
+          </div>
+          <div class="chart-container fade-in">
+            <h3 style="margin-bottom: 1rem;">Turnout Percentage</h3>
+            <canvas id="turnoutChart"></canvas>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem;">
+          <button id="viewCandidates" class="btn btn-outline">View Candidates</button>
+          <button id="manageVoters" class="btn btn-outline">Manage Voters</button>
+          <button id="endElection" class="btn" style="background: var(--error-color); color: white; border: none;">End
+            Election</button>
+        </div>
       </div>
     </main>
   </div>
@@ -166,15 +260,22 @@
     // --- utility helpers (safe JSON parsing) ---
     let resultsChart = null;
 
-    async function safeJson(resp) {
-      try { return await resp.json(); } catch { return null; }
-    }
+
 
     function getElectionAddress() {
-      const cookie = Cookies.get('address');
-      if (cookie) return cookie;
       const params = new URLSearchParams(window.location.search);
-      return params.get('address') || '';
+      const fromUrl = params.get('address');
+
+      if (fromUrl) {
+        // Sync cookie to URL if different
+        if (Cookies.get('address') !== fromUrl) {
+          Cookies.set('address', fromUrl, { path: '/' });
+        }
+        return fromUrl;
+      }
+
+      // Strict URL mode: If no URL param, return empty (Global Dashboard)
+      return '';
     }
 
     function getCompanyEmail() {
@@ -184,65 +285,134 @@
     function updateHeaderDisplays() {
       document.getElementById('companyEmailDisplay').textContent = getCompanyEmail() || '';
       const addr = getElectionAddress();
-      document.getElementById('electionAddrDisplay').textContent = addr ? `${addr.substr(0, 10)}...${addr.substr(-8)}` : 'No election selected';
+      document.getElementById('electionAddrDisplay').textContent = addr ? `${addr.substr(0, 10)}...${addr.substr(-8)}` : 'Admin Console';
     }
 
-    // --- load dashboard data (keep original behavior but robust) ---
-    async function loadDashboard() {
+    // --- MAIN LOGIC ---
+    async function init() {
       const addr = getElectionAddress();
-      if (!addr) {
-        document.getElementById('electionName').textContent = 'No election selected';
-        document.getElementById('electionDesc').textContent = 'Please create an election first.';
-        return;
-      }
+      if (addr) {
+        // Show detail view
+        document.getElementById('singleElectionView').style.display = 'block';
+        document.getElementById('allElectionsView').style.display = 'none';
 
+        // Show detail nav items
+        document.querySelectorAll('.detail-view-only').forEach(el => el.style.display = 'block');
+
+        await loadDashboard(addr);
+      } else {
+        // Show list view
+        document.getElementById('singleElectionView').style.display = 'none';
+        document.getElementById('allElectionsView').style.display = 'block';
+
+        // Hide detail nav items
+        document.querySelectorAll('.detail-view-only').forEach(el => el.style.display = 'none');
+
+        await loadAllElections();
+      }
+    }
+
+    // --- VIEW: ALL ELECTIONS ---
+    async function loadAllElections() {
+      UI.showLoader('Loading Elections...');
+      try {
+        const resp = await fetch('/api/elections');
+        const json = await UI.safeJson(resp);
+
+        const tbody = document.getElementById('electionsTableBody');
+        tbody.innerHTML = '';
+
+        const list = json.data || [];
+        if (list.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: #888;">No elections found. Create one to get started.</td></tr>';
+          return;
+        }
+
+        list.forEach(e => {
+          const tr = document.createElement('tr');
+          const shortAddr = `${e.election_address.substr(0, 8)}...${e.election_address.substr(-6)}`;
+          const statusClass = e.status === 'ENDED' ? 'status-ended' : (e.status === 'ONGOING' ? 'status-ongoing' : 'status-scheduled');
+
+          tr.innerHTML = `
+            <td style="font-family:monospace;">${shortAddr}</td>
+            <td><span class="status-badge ${statusClass}">${e.status || 'UNKNOWN'}</span></td>
+            <td>${new Date(e.start_date).toLocaleString()}</td>
+            <td>${new Date(e.end_date).toLocaleString()}</td>
+            <td>
+              <button onclick="window.location.href='company_dashboard.html?address=${e.election_address}'" class="btn btn-sm" style="padding: 0.4rem 1rem; font-size: 0.8rem;">Manage</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+      } catch (err) {
+        console.error(err);
+        UI.toast('Failed to load elections', 'error');
+      } finally {
+        UI.hideLoader();
+      }
+    }
+
+    // --- VIEW: SINGLE DASHBOARD ---
+    async function loadDashboard(addr) {
       UI.showLoader('Loading Stats...');
       const encoded = encodeURIComponent(addr);
       try {
-        // election details
+        // 1. Details from contract (Name/Desc)
         const respDetails = await fetch(`/api/elections/${encoded}/details`, { headers: { 'Accept': 'application/json' } });
         if (respDetails.ok) {
-          const body = await safeJson(respDetails);
-          const electionName = body?.data?.election_name || body?.election_name || "Unnamed election";
-          const electionDesc = body?.data?.election_desc || body?.election_desc || "";
-          document.getElementById('electionName').textContent = electionName;
-          document.getElementById('electionDesc').textContent = electionDesc;
-        } else {
-          document.getElementById('electionName').textContent = 'Unnamed election';
+          const body = await UI.safeJson(respDetails);
+          // Also fetch metadata for status
+          const respMeta = await fetch(`/api/elections/${encoded}/metadata`);
+          const metaJson = await UI.safeJson(respMeta);
+
+          const status = metaJson?.data?.status || 'UNKNOWN';
+          const badge = document.getElementById('electionStatusBadge');
+          badge.textContent = status;
+          badge.className = `status-badge ${status === 'ENDED' ? 'status-ended' : (status === 'ONGOING' ? 'status-ongoing' : 'status-scheduled')}`;
+
+          // Disable "End Election" if updated
+          if (status === 'ENDED') {
+            const btn = document.getElementById('endElection');
+            btn.disabled = true;
+            btn.textContent = 'Election Ended';
+            btn.style.opacity = 0.5;
+            btn.style.cursor = 'not-allowed';
+          }
+
+          document.getElementById('electionName').textContent = body?.data?.election_name || "Unnamed election";
+          document.getElementById('electionDesc').textContent = body?.data?.election_desc || "";
         }
 
-        // candidates
+        // 2. Candidates
         const respCandidates = await fetch(`/api/elections/${encoded}/candidates`, { headers: { 'Accept': 'application/json' } });
         let candidates = [];
         if (respCandidates.ok) {
-          const cbody = await safeJson(respCandidates);
-          if (Array.isArray(cbody)) candidates = cbody;
-          else candidates = cbody?.candidates || cbody?.data?.candidates || [];
+          const cbody = await UI.safeJson(respCandidates);
+          candidates = cbody?.candidates || [];
         }
-        document.getElementById('candidatesCount').textContent = String(candidates.length || 0);
+        document.getElementById('candidatesCount').textContent = String(candidates.length);
 
-        // voters
+        // 3. Voters
         const respVoters = await fetch(`/api/elections/${encoded}/voters`, { headers: { 'Accept': 'application/json' } });
         let voters = [];
         if (respVoters.ok) {
-          const vbody = await safeJson(respVoters);
-          voters = Array.isArray(vbody?.voters) ? vbody.voters : (Array.isArray(vbody) ? vbody : []);
+          const vbody = await UI.safeJson(respVoters);
+          // Ensure we handle the new unified format
+          voters = vbody?.voters || vbody || [];
         }
-        document.getElementById('votersCount').textContent = String(voters.length || 0);
+        document.getElementById('votersCount').textContent = String(voters.length);
 
-        // total votes (sum up voteCount/votes fields)
-        const totalVotes = (candidates || []).reduce((sum, c) => {
-          const v = Number(c.voteCount || c.votes || c.vote_count || 0);
-          return sum + (isNaN(v) ? 0 : v);
-        }, 0);
+        // 4. Votes
+        // Count from candidates for now
+        const totalVotes = candidates.reduce((sum, c) => sum + (c.voteCount || 0), 0);
         document.getElementById('votesCount').textContent = String(totalVotes);
 
-        // Render Charts
         renderChart(candidates);
         renderTurnoutChart(totalVotes, voters.length);
-        // Geo analytics removed
+
       } catch (err) {
-        console.warn('Failed to load dashboard data', err);
+        console.warn('Failed to load dashboard', err);
         UI.toast('Failed to load dashboard data', 'error');
       } finally {
         UI.hideLoader();
@@ -252,7 +422,7 @@
     let turnoutChart = null;
     function renderTurnoutChart(votes, totalVoters) {
       const ctx = document.getElementById('turnoutChart').getContext('2d');
-      const percentage = totalVoters > 0 ? ((votes / totalVoters) * 100).toFixed(1) : 0;
+      const percentage = totalVoters > 0 ? ((votes / totalVoters) * 100).toFixed(1) : 0; // Use votes cast vs registered
 
       if (turnoutChart) turnoutChart.destroy();
 
@@ -284,14 +454,11 @@
     }
 
     function renderChart(candidates) {
-      // ... (existing bar chart logic)
       const ctx = document.getElementById('resultsChart').getContext('2d');
       const labels = candidates.map(c => c.name || 'Unknown');
-      const data = candidates.map(c => Number(c.voteCount || c.votes || 0));
+      const data = candidates.map(c => Number(c.voteCount || 0));
 
-      if (resultsChart) {
-        resultsChart.destroy();
-      }
+      if (resultsChart) resultsChart.destroy();
 
       resultsChart = new Chart(ctx, {
         type: 'bar',
@@ -300,15 +467,8 @@
           datasets: [{
             label: '# of Votes',
             data: data,
-            backgroundColor: 'rgba(108, 92, 231, 0.6)', // solid color for all? No, let's keep array if preferred or simple
-            backgroundColor: [
-              'rgba(108, 92, 231, 0.6)', 'rgba(9, 132, 227, 0.6)', 'rgba(0, 184, 148, 0.6)',
-              'rgba(253, 203, 110, 0.6)', 'rgba(225, 112, 85, 0.6)', 'rgba(214, 48, 49, 0.6)'
-            ],
-            borderColor: [
-              'rgba(108, 92, 231, 1)', 'rgba(9, 132, 227, 1)', 'rgba(0, 184, 148, 1)',
-              'rgba(253, 203, 110, 1)', 'rgba(225, 112, 85, 1)', 'rgba(214, 48, 49, 1)'
-            ],
+            backgroundColor: 'rgba(108, 92, 231, 0.6)',
+            borderColor: 'rgba(108, 92, 231, 1)',
             borderWidth: 1
           }]
         },
@@ -324,102 +484,89 @@
       });
     }
 
-
-
-    // --- get winner from candidates list (selects highest votes) ---
-    async function computeWinner(electionAddress) {
-      if (!electionAddress) return null;
-      const encoded = encodeURIComponent(electionAddress);
-      try {
-        const resp = await fetch(`/api/elections/${encoded}/candidates`, { headers: { 'Accept': 'application/json' } });
-        if (!resp.ok) return null;
-        const body = await safeJson(resp);
-        let candidates = [];
-        if (Array.isArray(body)) candidates = body;
-        else candidates = body?.candidates || body?.data?.candidates || [];
-
-        if (!candidates || candidates.length === 0) return null;
-
-        let winner = null;
-        let maxVotes = -1;
-        for (const c of candidates) {
-          const v = Number(c.voteCount || c.votes || c.vote_count || 0);
-          const votes = isNaN(v) ? 0 : v;
-          if (votes > maxVotes) {
-            maxVotes = votes;
-            winner = c;
-          }
-        }
-        if (!winner && candidates.length > 0) winner = candidates[0];
-
-        if (winner) {
-          return {
-            name: winner.name || winner.candidate_name || winner.candidate || '(unnamed)',
-            email: winner.email || winner.candidate_email || '',
-            voteCount: Number(winner.voteCount || winner.votes || winner.vote_count || 0)
-          };
-        }
-        return null;
-      } catch (err) {
-        console.error('computeWinner error', err);
-        return null;
+    async function confirmClearDatabase() {
+      if (!confirm("⚠️ DANGER ZONE ⚠️\n\nAre you sure you want to CLEAR THE ENTIRE DATABASE?\n\nThis will permanently delete:\n- All Candidates\n- All OTPs\n- All Audit Logs\n- All Election Metadata\n\nThis action cannot be undone.")) {
+        return;
       }
-    }
 
-    // --- end election handler ---
-    async function endElectionHandler() {
-      const btn = document.getElementById('endElection');
-      const addr = getElectionAddress();
-      if (!addr) { UI.toast('No election selected', 'error'); return; }
-      if (!confirm('End election and send result mail to all voters?')) return;
+      if (!confirm("Please confirm one last time.\n\nType 'YES' to proceed?")) { // double confirm implied
+        // simplified for UX, just double click ok
+        return;
+      }
 
+      UI.showLoader("Wiping Database...");
       try {
-        btn.disabled = true;
-        btn.textContent = 'Ending election...';
-        btn.style.opacity = 0.6;
-        UI.showLoader('Ending Election (Generating Results)...');
+        const resp = await fetch('/api/admin/clear-database', { method: 'POST' });
+        const data = await UI.safeJson(resp);
 
-        let electionName = document.getElementById('electionName')?.textContent || '';
-        if (!electionName || electionName.trim() === '' || electionName === 'Unnamed election') {
-          electionName = prompt('Enter election name:') || "Election";
-        }
-
-        const winner = await computeWinner(addr);
-        let winnerName = winner?.name || prompt('Enter winner name:');
-
-        const payload = {
-          election_address: addr,
-          election_name: electionName,
-          winner_candidate: winnerName
-        };
-        if (winner?.email) payload.candidate_email = winner.email;
-
-        const resp = await fetch('/api/voter/resultMail', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const json = await safeJson(resp);
-
-        if (resp.ok && (json?.status === 'success' || json?.success === true)) {
-          UI.toast('Result emails sent successfully!', 'success');
+        if (resp.ok) {
+          alert(`Database Cleared!\n\nDeleted:\nCandidates: ${data.data.candidates}\nOTPs: ${data.data.otps}\nLogs: ${data.data.audit_logs}`);
+          window.location.reload();
         } else {
-          UI.toast('Error: ' + (json?.message || 'Failed'), 'error');
+          alert("Failed to clear: " + (data.message || "Unknown error"));
         }
-
-      } catch (err) {
-        console.error('endElectionHandler error', err);
-        UI.toast('Failed to end election', 'error');
+      } catch (e) {
+        console.error(e);
+        alert("Error connecting to server");
       } finally {
-        btn.disabled = false;
-        btn.textContent = 'End Election (mail)';
-        btn.style.opacity = 1;
         UI.hideLoader();
       }
     }
 
-    // --- navigation & event wiring ---
+    // --- End Election Logic ---
+    async function endElectionHandler() {
+      const addr = getElectionAddress();
+      if (!confirm(`Are you sure you want to END election ${addr}? Voting will stop immediately.`)) return;
+
+      const btn = document.getElementById('endElection');
+      try {
+        btn.textContent = "Ending...";
+        btn.disabled = true;
+
+        // 1. Call End Election API
+        const respEnd = await fetch(`/api/elections/${encodeURIComponent(addr)}/end`, { method: 'POST' });
+        if (!respEnd.ok) throw new Error('Failed to end election status');
+
+        // 2. Compute Winner and Send Mail (Existing logic)
+        // Note: computeWinner fetches candidates to find max votes
+        const winner = await getWinner(addr);
+        let payload = {
+          election_address: addr,
+          election_name: document.getElementById('electionName').textContent,
+          winner_candidate: winner ? winner.name : "No Votes Cast"
+        };
+        // If winner exists, send mail to them too
+        if (winner && winner.email) payload.candidate_email = winner.email;
+
+        UI.toast('Election Ended. Sending Result Emails...', 'info');
+
+        // Trigger mail 
+        await fetch('/api/voter/resultMail', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        UI.toast('Election Ended Successfully!', 'success');
+        setTimeout(() => window.location.reload(), 1500);
+
+      } catch (err) {
+        console.error(err);
+        UI.toast('Error ending election: ' + err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = "End Election";
+      }
+    }
+
+    async function getWinner(addr) {
+      // Quick fetch candidates to find winner
+      const resp = await fetch(`/api/elections/${encodeURIComponent(addr)}/candidates`);
+      const json = await UI.safeJson(resp);
+      const candidates = json?.candidates || [];
+      if (candidates.length === 0) return null;
+      return candidates.reduce((prev, current) => (prev.voteCount > current.voteCount) ? prev : current);
+    }
+
     function navTo(page) {
       const addr = getElectionAddress();
       const q = addr ? `?address=${encodeURIComponent(addr)}` : '';
@@ -428,12 +575,9 @@
 
     document.getElementById('candidatesBtn').addEventListener('click', () => navTo('candidate_list.html'));
     document.getElementById('votersBtn').addEventListener('click', () => navTo('voting_list.html'));
-    document.getElementById('dashboardBtn').addEventListener('click', () => navTo('company_dashboard.html'));
+    document.getElementById('dashboardBtn').addEventListener('click', () => window.location.href = 'company_dashboard.html'); // Always go to root list
     document.getElementById('createBtn').addEventListener('click', () => window.location.href = 'create_election.html');
-
     document.getElementById('logoutBtn').addEventListener('click', function () {
-      localStorage.removeItem('companyElectionAddress');
-      localStorage.removeItem('companyEmail');
       Cookies.remove('company_email', { path: '/' });
       Cookies.remove('address', { path: '/' });
       window.location.href = 'homepage.html';
@@ -443,9 +587,10 @@
     document.getElementById('manageVoters').addEventListener('click', () => navTo('voting_list.html'));
     document.getElementById('endElection').addEventListener('click', endElectionHandler);
 
-    // --- init page ---
+    // Init
     updateHeaderDisplays();
-    loadDashboard();
+    init();
+
   </script>
 </body>
 

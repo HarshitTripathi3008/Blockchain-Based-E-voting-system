@@ -1,195 +1,259 @@
 package controllers
 
 import (
-    "context"
-    "encoding/json"
-    "os"
-    "net/http"
-    "time"
-    "MAJOR-PROJECT/bindings"
-    "github.com/ethereum/go-ethereum/accounts/abi/bind"
-    "github.com/ethereum/go-ethereum/common"
+	"MAJOR-PROJECT/bindings"
+	"context"
+	"encoding/json"
+	"net/http"
+	"os"
+	"time"
 
-    "go.mongodb.org/mongo-driver/bson"
-    "go.mongodb.org/mongo-driver/bson/primitive"
-    "go.mongodb.org/mongo-driver/mongo"
-    "go.mongodb.org/mongo-driver/mongo/options"
-    "golang.org/x/crypto/bcrypt"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Company struct {
-    ID       primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-    Email    string             `bson:"email" json:"email"`
-    Password string             `bson:"password" json:"-"`
+	ID       primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Email    string             `bson:"email" json:"email"`
+	Password string             `bson:"password" json:"-"`
 }
 
 type CompanyRequest struct {
-    Email    string `json:"email"`
-    Password string `json:"password"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type CompanyResponse struct {
-    Status  string      `json:"status"`
-    Message string      `json:"message"`
-    Data    interface{} `json:"data,omitempty"`
+	Status  string      `json:"status"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
 }
 
 var companyCollection *mongo.Collection
 
 // Initialize company collection and unique email index
 func InitCompanyCollection(client *mongo.Client, dbName string) {
-    companyCollection = client.Database(dbName).Collection("companies")
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-    _, _ = companyCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
-        Keys:    bson.D{{Key: "email", Value: 1}},
-        Options: options.Index().SetUnique(true),
-    })
+	companyCollection = client.Database(dbName).Collection("companies")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, _ = companyCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "email", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
 }
 
 func withCompanyCORS(w http.ResponseWriter) {
-    w.Header().Set("Content-Type", "application/json")
-    w.Header().Set("Access-Control-Allow-Origin", "*")
-    w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-    w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 }
 
 func CreateCompany(w http.ResponseWriter, r *http.Request) {
-    withCompanyCORS(w)
-    if r.Method == http.MethodOptions {
-        w.WriteHeader(http.StatusOK)
-        return
-    }
-    if r.Method != http.MethodPost {
-        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-        return
-    }
+	withCompanyCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-    var req CompanyRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        w.WriteHeader(http.StatusBadRequest)
-        _ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Invalid request body"})
-        return
-    }
-    if req.Email == "" || req.Password == "" {
-        w.WriteHeader(http.StatusBadRequest)
-        _ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "email and password are required"})
-        return
-    }
+	var req CompanyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Invalid request body"})
+		return
+	}
+	if req.Email == "" || req.Password == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "email and password are required"})
+		return
+	}
 
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-    hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-    if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        _ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Error hashing password"})
-        return
-    }
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Error hashing password"})
+		return
+	}
 
-    newCompany := Company{Email: req.Email, Password: string(hashedPassword)}
-    result, err := companyCollection.InsertOne(ctx, newCompany)
-    if err != nil {
-        if mongoErr, ok := err.(mongo.WriteException); ok {
-            for _, we := range mongoErr.WriteErrors {
-                if we.Code == 11000 {
-                    w.WriteHeader(http.StatusConflict)
-                    _ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Company already exists"})
-                    return
-                }
-            }
-        }
-        w.WriteHeader(http.StatusInternalServerError)
-        _ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Error creating company"})
-        return
-    }
+	newCompany := Company{Email: req.Email, Password: string(hashedPassword)}
+	result, err := companyCollection.InsertOne(ctx, newCompany)
+	if err != nil {
+		if mongoErr, ok := err.(mongo.WriteException); ok {
+			for _, we := range mongoErr.WriteErrors {
+				if we.Code == 11000 {
+					w.WriteHeader(http.StatusConflict)
+					_ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Company already exists"})
+					return
+				}
+			}
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Error creating company"})
+		return
+	}
 
-    var created Company
-    if err := companyCollection.FindOne(ctx, bson.M{"_id": result.InsertedID}).Decode(&created); err != nil {
-        created.ID = result.InsertedID.(primitive.ObjectID)
-        created.Email = req.Email
-    }
+	var created Company
+	if err := companyCollection.FindOne(ctx, bson.M{"_id": result.InsertedID}).Decode(&created); err != nil {
+		created.ID = result.InsertedID.(primitive.ObjectID)
+		created.Email = req.Email
+	}
 
-    _ = json.NewEncoder(w).Encode(CompanyResponse{
-        Status:  "success",
-        Message: "Company added successfully!!!",
-        Data:    map[string]interface{}{"id": created.ID.Hex(), "email": created.Email},
-    })
+	_ = json.NewEncoder(w).Encode(CompanyResponse{
+		Status:  "success",
+		Message: "Company added successfully!!!",
+		Data:    map[string]interface{}{"id": created.ID.Hex(), "email": created.Email},
+	})
 }
 
 func AuthenticateCompany(w http.ResponseWriter, r *http.Request) {
-    withCompanyCORS(w)
-    if r.Method == http.MethodOptions {
-        w.WriteHeader(http.StatusOK)
-        return
-    }
-    if r.Method != http.MethodPost {
-        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-        return
-    }
+	withCompanyCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-    var req CompanyRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        w.WriteHeader(http.StatusBadRequest)
-        _ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Invalid request body"})
-        return
-    }
-    if req.Email == "" || req.Password == "" {
-        w.WriteHeader(http.StatusBadRequest)
-        _ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "email and password are required"})
-        return
-    }
+	var req CompanyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Invalid request body"})
+		return
+	}
+	if req.Email == "" || req.Password == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "email and password are required"})
+		return
+	}
 
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-    var companyInfo Company
-    if err := companyCollection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&companyInfo); err != nil {
-        w.WriteHeader(http.StatusUnauthorized)
-        _ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Invalid email/password!!!"})
-        return
-    }
+	var companyInfo Company
+	if err := companyCollection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&companyInfo); err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Invalid email/password!!!"})
+		return
+	}
 
-    if bcrypt.CompareHashAndPassword([]byte(companyInfo.Password), []byte(req.Password)) != nil {
-        w.WriteHeader(http.StatusUnauthorized)
-        _ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Invalid email/password!!!"})
-        return
-    }
+	if bcrypt.CompareHashAndPassword([]byte(companyInfo.Password), []byte(req.Password)) != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(CompanyResponse{Status: "error", Message: "Invalid email/password!!!"})
+		return
+	}
 
-    // Try to find deployed election address from the factory contract (optional)
-    electionAddrHex := ""
-    factoryAddrStr := os.Getenv("FACTORY_CONTRACT_ADDRESS")
-    if factoryAddrStr != "" {
-        // getClient is defined in election_controller.go and is in the same package
-        client, err := getClient()
-        if err == nil {
-            // ensure client closed
-            defer client.Close()
+	// Try to find deployed election address from the factory contract (optional)
+	electionAddrHex := ""
+	factoryAddrStr := os.Getenv("FACTORY_CONTRACT_ADDRESS")
+	if factoryAddrStr != "" {
+		// getClient is defined in election_controller.go and is in the same package
+		client, err := getClient()
+		if err == nil {
+			// ensure client closed
+			defer client.Close()
 
-            factoryAddr := common.HexToAddress(factoryAddrStr)
-            factory, err := bindings.NewElectionFactory(factoryAddr, client)
-            if err == nil {
-                // Use call opts with request context (non-blocking/polite)
-                callOpts := &bind.CallOpts{Context: r.Context(), Pending: false}
-                deployedAddr, _, _, err := factory.GetDeployedElection(callOpts, req.Email)
-                if err == nil {
-                    if deployedAddr != (common.Address{}) {
-                        electionAddrHex = deployedAddr.Hex()
-                    }
-                }
-                // ignore errors — just return login without election address
-            }
-        }
-    }
+			factoryAddr := common.HexToAddress(factoryAddrStr)
+			factory, err := bindings.NewElectionFactory(factoryAddr, client)
+			if err == nil {
+				// Use call opts with request context (non-blocking/polite)
+				callOpts := &bind.CallOpts{Context: r.Context(), Pending: false}
+				deployedAddr, _, _, err := factory.GetDeployedElection(callOpts, req.Email)
+				if err == nil {
+					if deployedAddr != (common.Address{}) {
+						electionAddrHex = deployedAddr.Hex()
+					}
+				}
+				// ignore errors — just return login without election address
+			}
+		}
+	}
 
-    data := map[string]interface{}{"id": companyInfo.ID.Hex(), "email": companyInfo.Email}
-    if electionAddrHex != "" {
-        data["election_address"] = electionAddrHex
-    }
+	data := map[string]interface{}{"id": companyInfo.ID.Hex(), "email": companyInfo.Email}
+	if electionAddrHex != "" {
+		data["election_address"] = electionAddrHex
+	}
 
-    _ = json.NewEncoder(w).Encode(CompanyResponse{
-        Status:  "success",
-        Message: "company found!!!",
-        Data:    data,
-    })
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":  "success",
+		"message": "company found!!!",
+		"data":    data,
+	})
 }
+
+// ClearDatabase wipes Candidates, OTPs, Audit Logs, and Election Metadata
+// mirroring logic from scripts/clear_candidates.go
+func ClearDatabase(w http.ResponseWriter, r *http.Request) {
+	withCompanyCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	deletedStats := make(map[string]int64)
+
+	// 1. Candidates
+	if candidateCollection != nil {
+		res, err := candidateCollection.DeleteMany(ctx, bson.M{})
+		if err == nil {
+			deletedStats["candidates"] = res.DeletedCount
+		}
+	}
+
+	// 2. OTPs
+	if otpCollection != nil {
+		res, err := otpCollection.DeleteMany(ctx, bson.M{})
+		if err == nil {
+			deletedStats["otps"] = res.DeletedCount
+		}
+	}
+
+	// 3. Audit Logs
+	if auditCollection != nil {
+		res, err := auditCollection.DeleteMany(ctx, bson.M{})
+		if err == nil {
+			deletedStats["audit_logs"] = res.DeletedCount
+		}
+	}
+
+	// 4. Election Metadata
+	if metadataCollection != nil {
+		res, err := metadataCollection.DeleteMany(ctx, bson.M{})
+		if err == nil {
+			deletedStats["election_metadata"] = res.DeletedCount
+		}
+	}
+
+	// Note: We are NOT deleting Voters or Companies, as per original script logic.
+	// Also we are skipping Cloudinary image deletion for now to keep API response fast,
+	// as that requires iterating and external calls. User can still run script for deep clean.
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":  "success",
+		"message": "Database cleared successfully (Candidates, OTPs, Logs, Metadata)",
+		"data":    deletedStats,
+	})
+}
+
+// Helper functions removed as they are already defined in election_controller.go

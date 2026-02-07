@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/static/css/global.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
     rel="stylesheet">
-  <script src="/static/js/ui.js"></script>
+  <script src="/static/js/ui.js?v=2"></script>
   <style>
     body {
       display: flex;
@@ -31,11 +31,14 @@
     <h2 style="margin-bottom: 2rem; color: var(--primary-color);">Election Commission</h2>
 
     <form id="companyLoginForm" novalidate>
-      <div style="margin-bottom: 1.5rem;">
-        <input type="email" id="companyEmail" required placeholder="Admin Email" autocomplete="username" />
+      <div class="form-group">
+        <i class="fas fa-envelope"></i>
+        <input type="email" id="companyEmail" placeholder="Email Address" required value="harshtripathi9559@gmail.com">
       </div>
-      <div style="margin-bottom: 2rem;">
-        <input type="password" id="companyPassword" required placeholder="Password" autocomplete="current-password" />
+
+      <div class="form-group">
+        <i class="fas fa-lock"></i>
+        <input type="password" id="companyPassword" placeholder="Password" required value="Admin@12345">
       </div>
       <button type="submit" id="companyLoginBtn" class="btn btn-primary" style="width: 100%;">Secure Login</button>
     </form>
@@ -43,7 +46,7 @@
     <div style="margin-top: 1.5rem; font-size: 0.9rem;">
       <button id="createAdminBtn"
         style="background: none; border: none; color: var(--text-muted); cursor: pointer; text-decoration: underline;">
-        
+
       </button>
     </div>
 

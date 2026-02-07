@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voter Dashboard - BlockVotes</title>
+    <link rel="stylesheet" href="/static/css/global.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    <script src="/static/js/ui.js?v=2"></script>
+    <style>
+        .layout {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-foreground);
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 0.5rem;
+        }
+
+        .election-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.2s;
+        }
+
+        .election-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary-color);
+        }
+
+        .election-info h3 {
+            margin: 0;
+            color: var(--accent-color);
+            font-size: 1.1rem;
+        }
+
+        .election-info p {
+            margin: 0.2rem 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-verified {
+            background: rgba(0, 184, 148, 0.2);
+            color: #00b894;
+        }
+
+        .status-pending {
+            background: rgba(253, 203, 110, 0.2);
+            color: #ffeaa7;
+        }
+
+        .status-rejected {
+            background: rgba(214, 48, 49, 0.2);
+            color: #ff7675;
+        }
+
+        .btn-action {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="layout">
+        <div class="header-row">
+            <div style="display:flex; align-items:center; gap:1rem;">
+                <img src="/static/logo3.png" alt="Logo" style="width: 40px; margin-right: 1rem;" />
+                <h2 style="margin:0;">Voter Dashboard</h2>
+            </div>
+            <div>
+                <span id="voterEmailDisplay" style="color: var(--text-muted); margin-right: 1rem;"></span>
+                <button id="logoutBtn" class="btn btn-sm btn-outline">Logout</button>
+            </div>
+        </div>
+
+        <!-- MY ELECTIONS -->
+        <div id="myElectionsSection">
+            <h3 class="section-title">My Registered Elections</h3>
+            <div id="myElectionsList">
+                <p style="text-align:center; color: var(--text-muted);">Loading your elections...</p>
+            </div>
+        </div>
+
+        <div style="margin-top: 3rem;"></div>
+
+        <!-- AVAILABLE ELECTIONS -->
+        <div id="availableElectionsSection">
+            <h3 class="section-title">Available Elections to Join</h3>
+            <div id="availableElectionsList">
+                <p style="text-align:center; color: var(--text-muted);">Loading available elections...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const voterId = Cookies.get('voter_id');
+        const voterEmail = Cookies.get('voter_email');
+
+        if (!voterId) {
+            window.location.href = 'voter_login.html';
+        }
+
+        document.getElementById('voterEmailDisplay').textContent = decodeURIComponent(voterEmail || 'Voter');
+
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            Cookies.remove('voter_id');
+            Cookies.remove('voter_email');
+            Cookies.remove('address');
+            window.location.href = 'voter_login.html';
+        });
+
+        async function loadData() {
+            UI.showLoader('Loading Elections...');
+            try {
+                // 1. Fetch My Elections
+                const respMe = await fetch(`/api/voters/me/elections?voter_id=${voterId}`);
+                const jsonMe = await UI.safeJson(respMe);
+                const myRegistrations = jsonMe.data || [];
+
+                // 2. Fetch All Active Elections
+                const respAll = await fetch('/api/elections');
+                const jsonAll = await UI.safeJson(respAll);
+                const allElections = jsonAll.data || [];
+
+                // 3. Render My Elections
+                const myContainer = document.getElementById('myElectionsList');
+                myContainer.innerHTML = '';
+
+                const myElectionMap = new Set(); // track addresses I'm in
+
+                if (myRegistrations.length === 0) {
+                    myContainer.innerHTML = '<p class="text-muted">You have not joined any elections yet.</p>';
+                } else {
+                    myRegistrations.forEach(reg => {
+                        myElectionMap.add(reg.election_address);
+
+                        // Find details for this election (try to match from allList or generic)
+                        const details = allElections.find(e => e.election_address === reg.election_address) || {};
+                        const name = details.election_name || `Election ${reg.election_address.substr(0, 8)}...`;
+                        const statusClass = reg.status === 'Verified' ? 'status-verified' : 'status-pending';
+
+                        const div = document.createElement('div');
+                        div.className = 'election-card fade-in';
+                        div.innerHTML = `
+                        <div class="election-info">
+                            <h3>${name}</h3>
+                            <p style="font-family:monospace; opacity:0.7;">${reg.election_address}</p>
+                            <span class="status-badge ${statusClass}">Status: ${reg.status}</span>
+                        </div>
+                        <div>
+                             ${reg.status === 'Verified' && (details.status !== 'ENDED') ?
+                                `<button onclick="goToVote('${reg.election_address}')" class="btn-action">Proceed to Vote &rarr;</button>` :
+                                (details.status === 'ENDED' ? '<span style="color:var(--error-color);">Ended</span>' : '<span style="color:var(--text-muted); font-size:0.9rem;">Wait for Approval</span>')
+                            }
+                        </div>
+                    `;
+                        myContainer.appendChild(div);
+                    });
+                }
+
+                // 4. Render Available Elections (Exclude ones I'm already in)
+                const availContainer = document.getElementById('availableElectionsList');
+                availContainer.innerHTML = '';
+
+                const toJoin = allElections.filter(e => !myElectionMap.has(e.election_address) && e.status !== 'ENDED');
+
+                if (toJoin.length === 0) {
+                    availContainer.innerHTML = '<p class="text-muted" style="text-align:center;">No new elections available to join at this moment.</p>';
+                } else {
+                    toJoin.forEach(e => {
+                        const div = document.createElement('div');
+                        div.className = 'election-card fade-in';
+                        div.innerHTML = `
+                        <div class="election-info">
+                            <h3>${e.election_name || 'Unnamed Election'}</h3>
+                            <p style="font-family:monospace; opacity:0.7;">${e.election_address}</p>
+                            <p>Ends: ${new Date(e.end_date).toLocaleDateString()}</p>
+                        </div>
+                        <div>
+                            <button onclick="joinElection('${e.election_address}')" class="btn btn-outline">Join Election</button>
+                        </div>
+                    `;
+                        availContainer.appendChild(div);
+                    });
+                }
+
+            } catch (err) {
+                console.error(err);
+                UI.toast('Failed to load dashboard data', 'error');
+            } finally {
+                UI.hideLoader();
+            }
+        }
+
+        window.goToVote = function (addr) {
+            // Set context cookie and go
+            Cookies.set('address', addr);
+            window.location.href = `vote.html?address=${encodeURIComponent(addr)}`;
+        }
+
+        window.joinElection = async function (addr) {
+            if (!confirm("Do you want to join this election?")) return;
+
+            UI.showLoader("Joining...");
+            try {
+                const resp = await fetch('/api/voters/join', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        voter_id: voterId,
+                        election_address: addr
+                    })
+                });
+                const json = await UI.safeJson(resp);
+                if (resp.ok) {
+                    UI.toast("Joined successfully!", "success");
+                    setTimeout(loadData, 1000);
+                } else {
+                    UI.toast("Failed: " + json.message, "error");
+                }
+            } catch (err) {
+                console.error(err);
+                UI.toast("Network error", "error");
+            } finally {
+                UI.hideLoader();
+            }
+        }
+
+        loadData();
+
+    </script>
+</body>
+
+</html>

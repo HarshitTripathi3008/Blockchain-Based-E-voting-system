@@ -5,11 +5,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Voter Management - BlockVotes</title>
+  <link rel="icon" type="image/png" href="/static/logo3.png">
   <link rel="stylesheet" href="/static/css/global.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
     rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
-  <script src="/static/js/ui.js"></script>
+  <script src="/static/js/ui.js?v=2"></script>
   <style>
     .layout {
       display: flex;
@@ -144,9 +145,46 @@
       <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
         <!-- Voter List -->
         <div>
-          <h3 style="margin-bottom: 1rem; color: var(--text-muted);">Registered Voters</h3>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+            <h3 style="margin:0; color: var(--text-muted);">Registered Voters</h3>
+            <button id="importVotersBtn" class="btn btn-outline" style="font-size:0.8rem; display:none;"
+              onclick="openImportModal()">+ Import Voters</button>
+          </div>
           <div id="voters-list">
             <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- Import Modal -->
+        <div id="importModal" class="modal-overlay">
+          <div class="modal-content" style="max-width: 700px;">
+            <h3 style="margin-bottom: 1rem;">Import Voters from Global Pool</h3>
+            <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">Select voters to grant access to
+              the current election.</p>
+
+            <div
+              style="max-height: 400px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: 8px; padding: 0.5rem; margin-bottom: 1rem;">
+              <table style="width:100%; border-collapse: collapse;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--glass-border); text-align:left;">
+                    <th style="padding:0.5rem;"><input type="checkbox" id="selectAllImport"
+                        onchange="toggleSelectAllImport()"></th>
+                    <th style="padding:0.5rem; color:var(--text-muted);">Name</th>
+                    <th style="padding:0.5rem; color:var(--text-muted);">Email</th>
+                  </tr>
+                </thead>
+                <tbody id="importVotersTableBody">
+                  <!-- Populated JS -->
+                </tbody>
+              </table>
+            </div>
+
+            <div style="text-align: right; display: flex; justify-content: flex-end; gap: 0.5rem;">
+              <button class="btn btn-outline"
+                onclick="document.getElementById('importModal').classList.remove('active')">Cancel</button>
+              <button id="confirmImportBtn" class="btn btn-primary" onclick="confirmImportVoters()">Add
+                Selected</button>
+            </div>
           </div>
         </div>
 
@@ -180,8 +218,13 @@
             <div style="margin-bottom: 1rem;">
               <input id="register_voter_father" type="text" placeholder="Father's Name" />
             </div>
-            <div style="margin-bottom: 1.5rem;">
+            <div style="margin-bottom: 1rem;">
               <input id="register_voter_mother" type="text" placeholder="Mother's Name" />
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+              <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:0.5rem;">Voter Photo
+                (ID)</label>
+              <input id="register_voter_photo" type="file" accept="image/*" style="font-size:0.85rem;" />
             </div>
 
             <button id="registerVoterBtn" type="submit" class="btn btn-primary" style="width: 100%;">Verify &
@@ -209,15 +252,11 @@
     let voters = [];
     let currentEditVoterId = null;
 
-    async function safeJson(resp) {
-      try { return await resp.json(); } catch { return null; }
-    }
+
 
     function getElectionAddress() {
-      const fromCookie = Cookies.get('address');
-      if (fromCookie) return fromCookie;
       const params = new URLSearchParams(window.location.search);
-      return params.get('address') || '';
+      return params.get('address') || Cookies.get('address') || '';
     }
 
     function escapeHtml(text) {
@@ -227,14 +266,19 @@
     // --- Core Logic ---
     async function loadVoters() {
       const address = getElectionAddress();
-      if (!address) return;
-
       UI.showLoader('Loading Voters...');
       try {
-        const resp = await fetch(`/api/elections/${encodeURIComponent(address)}/voters`, { headers: { 'Accept': 'application/json' } });
+        let resp;
+        if (address) {
+          resp = await fetch(`/api/elections/${encodeURIComponent(address)}/voters`, { headers: { 'Accept': 'application/json' } });
+        } else {
+          // Global List
+          resp = await fetch(`/api/voters`, { headers: { 'Accept': 'application/json' } });
+        }
+
         if (resp.ok) {
-          const data = await safeJson(resp);
-          voters = Array.isArray(data?.voters) ? data.voters : (Array.isArray(data) ? data : []);
+          const data = await UI.safeJson(resp);
+          voters = Array.isArray(data?.voters) ? data.voters : (Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []));
           renderVoters();
         }
       } catch (err) {
@@ -320,6 +364,10 @@
                 <input id="edit_mobile" value="${escapeHtml(v.mobile || '')}" placeholder="Mobile" />
                 <textarea id="edit_address" rows="2" placeholder="Address">${escapeHtml(v.address || '')}</textarea>
                 <input id="edit_password" type="password" placeholder="New Password (leave blank to keep)" />
+                <div style="border-top:1px solid #333; padding-top:0.5rem;">
+                   <label style="font-size:0.8rem; color:var(--text-muted);">Update Photo</label>
+                   <input id="edit_photo" type="file" accept="image/*" style="font-size:0.85rem;" />
+                </div>
             </div>
         `;
       modal.classList.add('active');
@@ -331,13 +379,35 @@
       // Save Logic
       if (!currentEditVoterId) return;
 
+      // Image Upload
+      let photoUrl = "";
+      const photoInput = document.getElementById('edit_photo');
+      if (photoInput && photoInput.files.length > 0) {
+        UI.showLoader('Uploading Photo...');
+        try {
+          const fd = new FormData();
+          fd.append('file', photoInput.files[0]);
+          const upResp = await fetch('/api/upload/cloudinary', { method: 'POST', body: fd });
+          const upJson = await UI.safeJson(upResp);
+          if (!upResp.ok) throw new Error(upJson.message || 'Upload failed');
+          photoUrl = upJson.secure_url || upJson.url || "";
+          UI.hideLoader();
+        } catch (e) {
+          console.error(e);
+          UI.toast('Photo upload failed', 'error');
+          UI.hideLoader();
+          return;
+        }
+      }
+
       const payload = {
         full_name: document.getElementById('edit_name').value,
         email: document.getElementById('edit_email').value,
         dob: document.getElementById('edit_dob').value,
         mobile: document.getElementById('edit_mobile').value,
         address: document.getElementById('edit_address').value,
-        password: document.getElementById('edit_password').value
+        password: document.getElementById('edit_password').value,
+        photo_url: photoUrl
       };
 
       // clean empty
@@ -416,6 +486,12 @@
 
     document.getElementById('registerVoterForm').onsubmit = async (e) => {
       e.preventDefault();
+      const addr = getElectionAddress();
+      if (!addr) {
+        UI.toast('Please select an election to register voters.', 'warning');
+        return;
+      }
+
       const payload = {
         email: document.getElementById('register_voter_email').value,
         otp: document.getElementById('register_voter_otp').value,
@@ -425,7 +501,7 @@
         address: document.getElementById('register_voter_address').value,
         father_name: document.getElementById('register_voter_father').value,
         mother_name: document.getElementById('register_voter_mother').value,
-        election_address: getElectionAddress()
+        election_address: addr
       };
 
       if (!payload.otp) return UI.toast('OTP is required', 'warning');
@@ -435,14 +511,37 @@
       const age = new Date(Date.now() - dobDate.getTime()).getUTCFullYear() - 1970;
       if (age < 18) return UI.toast('Voter must be 18+', 'error');
 
+      // Image Upload
+      const photoInput = document.getElementById('register_voter_photo');
+      let photoUrl = "";
+
+      if (photoInput.files.length > 0) {
+        UI.showLoader('Uploading Photo...');
+        try {
+          const fd = new FormData();
+          fd.append('file', photoInput.files[0]);
+          const upResp = await fetch('/api/upload/cloudinary', { method: 'POST', body: fd });
+          const upJson = await UI.safeJson(upResp);
+          if (!upResp.ok) throw new Error(upJson.message || 'Upload failed');
+          photoUrl = upJson.secure_url || upJson.url || "";
+        } catch (e) {
+          console.error(e);
+          UI.toast('Photo upload failed: ' + e.message, 'error');
+          UI.hideLoader(); // stop here if photo fails, strict? or warn?
+          // Strict ID photo requirement seems appropriate
+          return;
+        }
+      }
+
       UI.showLoader('Verifying & Registering...');
       try {
+        const registrationPayload = { ...payload, photo_url: photoUrl };
         const resp = await fetch('/api/voters/verify-otp-register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(registrationPayload)
         });
-        const json = await safeJson(resp);
+        const json = await UI.safeJson(resp);
         if (resp.ok) {
           UI.toast('Voter Registered & Password Emailed', 'success');
           document.getElementById('registerVoterForm').reset();
@@ -469,7 +568,102 @@
       window.location.href = 'homepage.html';
     };
 
+    // --- Bulk Import Logic ---
+    let globalVotersCache = [];
+
+    async function openImportModal() {
+      const currentAddr = getElectionAddress();
+      if (!currentAddr) return; // Should not happen if button is hidden
+
+      UI.showLoader('Loading Global Voters...');
+      try {
+        // Fetch ALL voters
+        const resp = await fetch(`/api/voters`, { headers: { 'Accept': 'application/json' } });
+        const data = await UI.safeJson(resp);
+        const allVoters = Array.isArray(data?.voters) ? data.voters : (Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []));
+
+        // Fetch CURRENT election voters to exclude them
+        const respCurr = await fetch(`/api/elections/${encodeURIComponent(currentAddr)}/voters`, { headers: { 'Accept': 'application/json' } });
+        const dataCurr = await UI.safeJson(respCurr);
+        const currentVoters = Array.isArray(dataCurr?.voters) ? dataCurr.voters : (Array.isArray(dataCurr?.data) ? dataCurr.data : []);
+
+        const currentIds = new Set(currentVoters.map(v => v.id || v._id || v.email));
+
+        // Filter: Voters NOT in current election
+        globalVotersCache = allVoters.filter(v => !currentIds.has(v.id || v._id || v.email));
+
+        renderImportList();
+        document.getElementById('importModal').classList.add('active');
+
+      } catch (e) {
+        console.error(e);
+        UI.toast('Failed to load import list', 'error');
+      } finally {
+        UI.hideLoader();
+      }
+    }
+
+    function renderImportList() {
+      const tbody = document.getElementById('importVotersTableBody');
+      tbody.innerHTML = '';
+      if (globalVotersCache.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="padding:1rem; text-align:center; color:var(--text-muted);">No eligible voters found to import.</td></tr>';
+        return;
+      }
+
+      globalVotersCache.forEach(v => {
+        const id = v.id || v._id;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+                <td style="padding:0.5rem;"><input type="checkbox" class="import-check" value="${id}"></td>
+                <td style="padding:0.5rem;">${escapeHtml(v.full_name)}</td>
+                <td style="padding:0.5rem; font-family:monospace; font-size:0.9rem;">${escapeHtml(v.email)}</td>
+            `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function toggleSelectAllImport() {
+      const master = document.getElementById('selectAllImport');
+      document.querySelectorAll('.import-check').forEach(cb => cb.checked = master.checked);
+    }
+
+    async function confirmImportVoters() {
+      const selected = Array.from(document.querySelectorAll('.import-check:checked')).map(cb => cb.value);
+      if (selected.length === 0) return UI.toast('No voters selected', 'warning');
+
+      const currentAddr = getElectionAddress();
+      UI.showLoader(`Importing ${selected.length} voters...`);
+
+      try {
+        const resp = await fetch(`/api/elections/${encodeURIComponent(currentAddr)}/voters/add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ voter_ids: selected })
+        });
+        const json = await UI.safeJson(resp);
+
+        if (resp.ok) {
+          UI.toast(json?.message || 'Voters Imported Successfully', 'success');
+          document.getElementById('importModal').classList.remove('active');
+          loadVoters(); // Refresh list
+        } else {
+          UI.toast(json?.message || 'Import failed', 'error');
+        }
+      } catch (e) {
+        console.error(e);
+        UI.toast('Error importing voters', 'error');
+      } finally {
+        UI.hideLoader();
+      }
+    }
+
     // --- Init ---
+    // Check key for import btn visibility
+    if (getElectionAddress()) {
+      document.getElementById('importVotersBtn').style.display = 'block';
+    }
+
     loadVoters();
 
   </script>
