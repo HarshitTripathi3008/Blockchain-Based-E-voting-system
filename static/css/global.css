@@ -10,7 +10,7 @@
     --text-muted: #b2bec3;
     --error-color: #d63031;
     --success-color: #00b894;
-    
+
     /* --- Glassmorphism Tokens --- */
     --glass-bg: rgba(255, 255, 255, 0.05);
     --glass-border: rgba(255, 255, 255, 0.1);
@@ -19,7 +19,8 @@
     --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.5);
 
     /* --- Typography --- */
-    --font-heading: 'Outfit', sans-serif; /* Google Font to import */
+    --font-heading: 'Outfit', sans-serif;
+    /* Google Font to import */
     --font-body: 'Inter', sans-serif;
 
     /* --- Spacing --- */
@@ -31,7 +32,9 @@
 }
 
 /* --- Global Reset & Base Styles --- */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
@@ -39,7 +42,7 @@
 
 body {
     background-color: var(--bg-color);
-    background-image: 
+    background-image:
         radial-gradient(circle at 15% 50%, rgba(108, 92, 231, 0.15) 0%, transparent 40%),
         radial-gradient(circle at 85% 30%, rgba(0, 206, 201, 0.1) 0%, transparent 40%);
     color: var(--text-color);
@@ -49,7 +52,12 @@ body {
     overflow-x: hidden;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
     font-family: var(--font-heading);
     font-weight: 700;
     color: #fff;
@@ -122,7 +130,9 @@ a:hover {
 }
 
 /* --- Form Elements --- */
-input, select, textarea {
+input,
+select,
+textarea {
     width: 100%;
     padding: 0.8rem 1rem;
     background: rgba(255, 255, 255, 0.03);
@@ -134,7 +144,9 @@ input, select, textarea {
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-input:focus, select:focus, textarea:focus {
+input:focus,
+select:focus,
+textarea:focus {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
@@ -142,8 +154,15 @@ input:focus, select:focus, textarea:focus {
 
 /* --- Animations --- */
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .fade-in {
@@ -176,8 +195,13 @@ input:focus, select:focus, textarea:focus {
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 /* --- Toast Notifications --- */
@@ -209,3 +233,570 @@ input:focus, select:focus, textarea:focus {
     border-left-color: var(--success-color);
 }
 
+/* ============================================ */
+/* MOBILE-FIRST RESPONSIVE DESIGN */
+/* Samsung Galaxy S24 FE: 412px x 915px viewport */
+/* ============================================ */
+
+/* Mobile Base Styles (< 768px) */
+@media (max-width: 767px) {
+    :root {
+        /* Adjust spacing for mobile */
+        --spacing-sm: 0.75rem;
+        --spacing-md: 1rem;
+        --spacing-lg: 1.5rem;
+        --spacing-xl: 2rem;
+    }
+
+    body {
+        font-size: 16px;
+        /* Prevent zoom on input focus */
+        padding: 0;
+    }
+
+    /* Typography adjustments */
+    h1 {
+        font-size: 2rem;
+    }
+
+    h2 {
+        font-size: 1.75rem;
+    }
+
+    h3 {
+        font-size: 1.5rem;
+    }
+
+    h4 {
+        font-size: 1.25rem;
+    }
+
+    h5 {
+        font-size: 1.1rem;
+    }
+
+    h6 {
+        font-size: 1rem;
+    }
+
+    /* Glass cards - reduce padding on mobile */
+    .glass-card {
+        padding: 1.25rem;
+        border-radius: 12px;
+    }
+
+    /* Buttons - larger touch targets */
+    .btn {
+        padding: 1rem 1.5rem;
+        font-size: 1rem;
+        min-height: 48px;
+        /* Minimum touch target */
+        width: 100%;
+        /* Full width on mobile */
+        text-align: center;
+    }
+
+    /* Form elements - optimized for mobile */
+    input,
+    select,
+    textarea {
+        font-size: 16px;
+        /* Prevent zoom on iOS */
+        padding: 1rem;
+        border-radius: 8px;
+    }
+
+    /* Toast notifications - adjust position */
+    #toast-container {
+        bottom: 1rem;
+        right: 1rem;
+        left: 1rem;
+    }
+
+    .toast-notification {
+        min-width: auto;
+        width: 100%;
+    }
+
+    /* Loader - smaller on mobile */
+    .loader-spinner {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+/* Mobile-specific utilities */
+.mobile-only {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .mobile-only {
+        display: block;
+    }
+
+    .desktop-only {
+        display: none;
+    }
+}
+
+/* Touch-friendly spacing */
+@media (max-width: 767px) {
+
+    /* Ensure minimum spacing between interactive elements */
+    a,
+    button,
+    .btn,
+    input[type="checkbox"],
+    input[type="radio"] {
+        margin: 0.5rem 0;
+    }
+
+    /* Stack elements vertically on mobile */
+    .flex-row-mobile-column {
+        flex-direction: column;
+    }
+
+    /* Full-width containers on mobile */
+    .container-mobile-full {
+        width: 100%;
+        max-width: 100%;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}
+
+/* Tablet and up (768px+) */
+@media (min-width: 768px) {
+    .desktop-only {
+        display: block;
+    }
+}
+
+/* Prevent horizontal scroll on mobile */
+@media (max-width: 767px) {
+    * {
+        max-width: 100%;
+    }
+
+    img,
+    video {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
+/* Optimize for Samsung Galaxy S24 FE specifically (412px) */
+@media (max-width: 430px) {
+    body {
+        padding: 0;
+    }
+
+    .glass-card {
+        padding: 1rem;
+        margin: 0.5rem;
+    }
+
+    /* Smaller font sizes for very small screens */
+    h1 {
+        font-size: 1.75rem;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+    }
+
+    h3 {
+        font-size: 1.25rem;
+    }
+}
+
+
+.toast-notification {
+    min-width: 300px;
+    padding: 1rem;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-left: 4px solid var(--primary-color);
+}
+
+.toast-error {
+    border-left-color: var(--error-color);
+}
+
+.toast-success {
+    border-left-color: var(--success-color);
+}
+
+/* ============================================ */
+/* MOBILE-FIRST RESPONSIVE DESIGN */
+/* Samsung Galaxy S24 FE: 412px x 915px viewport */
+/* ============================================ */
+
+/* Mobile Base Styles (< 768px) */
+@media (max-width: 767px) {
+    :root {
+        /* Adjust spacing for mobile */
+        --spacing-sm: 0.75rem;
+        --spacing-md: 1rem;
+        --spacing-lg: 1.5rem;
+        --spacing-xl: 2rem;
+    }
+
+    body {
+        font-size: 16px;
+        /* Prevent zoom on input focus */
+        padding: 0;
+    }
+
+    /* Typography adjustments */
+    h1 {
+        font-size: 2rem;
+    }
+
+    h2 {
+        font-size: 1.75rem;
+    }
+
+    h3 {
+        font-size: 1.5rem;
+    }
+
+    h4 {
+        font-size: 1.25rem;
+    }
+
+    h5 {
+        font-size: 1.1rem;
+    }
+
+    h6 {
+        font-size: 1rem;
+    }
+
+    /* Glass cards - reduce padding on mobile */
+    .glass-card {
+        padding: 1.25rem;
+        border-radius: 12px;
+    }
+
+    /* Buttons - larger touch targets */
+    .btn {
+        padding: 1rem 1.5rem;
+        font-size: 1rem;
+        min-height: 48px;
+        /* Minimum touch target */
+        width: 100%;
+        /* Full width on mobile */
+        text-align: center;
+    }
+
+    /* Form elements - optimized for mobile */
+    input,
+    select,
+    textarea {
+        font-size: 16px;
+        /* Prevent zoom on iOS */
+        padding: 1rem;
+        border-radius: 8px;
+    }
+
+    /* Toast notifications - adjust position */
+    #toast-container {
+        bottom: 1rem;
+        right: 1rem;
+        left: 1rem;
+    }
+
+    .toast-notification {
+        min-width: auto;
+        width: 100%;
+    }
+
+    /* Loader - smaller on mobile */
+    .loader-spinner {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+/* Mobile-specific utilities */
+.mobile-only {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .mobile-only {
+        display: block;
+    }
+
+    .desktop-only {
+        display: none;
+    }
+}
+
+/* Touch-friendly spacing */
+@media (max-width: 767px) {
+
+    /* Ensure minimum spacing between interactive elements */
+    a,
+    button,
+    .btn,
+    input[type="checkbox"],
+    input[type="radio"] {
+        margin: 0.5rem 0;
+    }
+
+    /* Stack elements vertically on mobile */
+    .flex-row-mobile-column {
+        flex-direction: column;
+    }
+
+    /* Full-width containers on mobile */
+    .container-mobile-full {
+        width: 100%;
+        max-width: 100%;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}
+
+/* Tablet and up (768px+) */
+@media (min-width: 768px) {
+    .desktop-only {
+        display: block;
+    }
+}
+
+/* Prevent horizontal scroll on mobile */
+@media (max-width: 767px) {
+    * {
+        max-width: 100%;
+    }
+
+    img,
+    video {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
+/* Optimize for Samsung Galaxy S24 FE specifically (412px) */
+@media (max-width: 430px) {
+    body {
+        padding: 0;
+    }
+
+    .glass-card {
+        padding: 1rem;
+        margin: 0.5rem;
+    }
+
+    /* Smaller font sizes for very small screens */
+    h1 {
+        font-size: 1.75rem;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+    }
+
+    h3 {
+        font-size: 1.25rem;
+    }
+}
+
+/* ============================================ */
+/* PAGE-SPECIFIC MOBILE OPTIMIZATIONS */
+/* ============================================ */
+
+/* Dashboard Layouts */
+@media (max-width: 767px) {
+    .layout {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--glass-border);
+        padding: 1rem;
+    }
+
+    .main-content {
+        padding: 1rem;
+    }
+
+    .layout,
+    .container {
+        padding: 1rem;
+        max-width: 100%;
+    }
+
+    .header-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    /* Stat cards */
+    .stat-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    /* Election/Candidate Cards */
+    .election-card,
+    .candidate-card,
+    .voter-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .election-card .btn,
+    .candidate-card .btn,
+    .voter-card .btn {
+        width: 100%;
+    }
+
+    /* Grid layouts - single column on mobile */
+    .features-grid,
+    .candidates-grid,
+    .elections-grid {
+        grid-template-columns: 1fr !important;
+        gap: 1rem;
+    }
+
+    /* Action buttons group */
+    .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        width: 100%;
+    }
+
+    .action-buttons .btn {
+        width: 100%;
+    }
+
+    /* Chart containers */
+    .chart-container {
+        height: 300px;
+        padding: 1rem;
+    }
+}
+
+/* Forms Optimization */
+@media (max-width: 767px) {
+    form {
+        width: 100%;
+    }
+
+    .form-group,
+    .form-row {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .form-group label {
+        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+    }
+
+    /* File inputs */
+    input[type="file"] {
+        font-size: 14px;
+        padding: 0.75rem;
+    }
+
+    /* Date/Time inputs */
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"] {
+        min-height: 48px;
+    }
+}
+
+/* Tables - Responsive Card Layout */
+@media (max-width: 767px) {
+    .table-container {
+        overflow-x: visible;
+    }
+
+    table {
+        display: block;
+    }
+
+    thead {
+        display: none;
+    }
+
+    tbody {
+        display: block;
+    }
+
+    tr {
+        display: block;
+        margin-bottom: 1rem;
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        padding: 1rem;
+        background: var(--glass-bg);
+    }
+
+    td {
+        display: block;
+        text-align: left;
+        padding: 0.5rem 0;
+        border: none;
+    }
+
+    td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        display: inline-block;
+        margin-right: 0.5rem;
+        color: var(--accent-color);
+    }
+}
+
+/* Navigation/Sidebar */
+@media (max-width: 767px) {
+    .nav-links {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .nav-links a,
+    .nav-btn {
+        padding: 1rem;
+        width: 100%;
+        text-align: left;
+    }
+}
+
+/* Modal/Dialog Optimization */
+@media (max-width: 767px) {
+
+    .modal,
+    .dialog {
+        width: 95%;
+        max-width: 95%;
+        margin: 1rem auto;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header,
+    .dialog-header {
+        padding: 1rem;
+    }
+
+    .modal-body,
+    .dialog-body {
+        padding: 1rem;
+    }
+}
