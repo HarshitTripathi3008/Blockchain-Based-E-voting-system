@@ -800,6 +800,7 @@ textarea:focus {
         padding: 1rem;
     }
 }
+
 /* ============================================ */
 /* HAMBURGER MENU FOR MOBILE SIDEBAR */
 /* ============================================ */
@@ -872,17 +873,26 @@ textarea:focus {
     background: rgba(0, 0, 0, 0.5);
     z-index: 999;
     opacity: 0;
-    transition: opacity 0.3s ease;
+    visibility: hidden;
+    /* Hidden by default */
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    pointer-events: none;
+    /* Don't block clicks when hidden */
 }
 
 .sidebar-overlay.active {
     opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    /* Allow clicks when active */
 }
 
 /* Mobile Sidebar Modifications */
 @media (max-width: 767px) {
     .hamburger-btn {
         display: block;
+        z-index: 1001;
+        /* Above overlay */
     }
 
     .sidebar {
@@ -903,11 +913,19 @@ textarea:focus {
 
     .sidebar-overlay {
         display: block;
+        /* Only show on mobile */
     }
 
     /* Adjust main content when sidebar is visible */
     .layout {
         position: relative;
+    }
+
+    /* Main content should be below hamburger but above nothing */
+    .main-content {
+        position: relative;
+        z-index: 1;
+        /* Below hamburger and sidebar */
     }
 
     /* Prevent body scroll when sidebar is open */
@@ -929,8 +947,10 @@ html {
 
 /* Fix for mobile orientation changes */
 @media (max-width: 767px) {
+
     /* Prevent horizontal overflow */
-    html, body {
+    html,
+    body {
         overflow-x: hidden;
         width: 100%;
         position: relative;
@@ -1006,14 +1026,16 @@ html {
 
     /* Ensure main content has proper padding when hamburger is visible */
     body:not(.sidebar-open) .main-content {
-        padding-top: 4rem; /* Space for hamburger button */
+        padding-top: 4rem;
+        /* Space for hamburger button */
     }
 }
 
 /* Landscape orientation fixes for mobile */
 @media (max-width: 767px) and (orientation: landscape) {
     .sidebar {
-        width: 250px; /* Narrower sidebar in landscape */
+        width: 250px;
+        /* Narrower sidebar in landscape */
     }
 
     .hamburger-btn {
@@ -1038,9 +1060,11 @@ html {
 
 /* Portrait orientation optimizations */
 @media (max-width: 767px) and (orientation: portrait) {
+
     /* Ensure proper spacing in portrait */
     .main-content {
-        padding-bottom: 2rem; /* Extra bottom padding */
+        padding-bottom: 2rem;
+        /* Extra bottom padding */
     }
 
     /* Stack action buttons vertically in portrait */
