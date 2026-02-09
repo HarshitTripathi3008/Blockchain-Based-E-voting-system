@@ -73,6 +73,16 @@ type VoterResponse struct {
 	Count   int         `json:"count,omitempty"`
 }
 
+// Helper function to send JSON error responses
+func sendJSONError(w http.ResponseWriter, message string, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(VoterResponse{
+		Status:  "error",
+		Message: message,
+	})
+}
+
 var voterCollection *mongo.Collection
 var otpCollection *mongo.Collection
 
@@ -269,11 +279,11 @@ func VerifyOTPAndRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Email == "" || req.OTP == "" {
-		http.Error(w, "email and otp required", http.StatusBadRequest)
+		sendJSONError(w, "email and otp required", http.StatusBadRequest)
 		return
 	}
 	if otpCollection == nil || voterCollection == nil {
-		http.Error(w, "server misconfigured: collections not ready", http.StatusInternalServerError)
+		sendJSONError(w, "server misconfigured: collections not ready", http.StatusInternalServerError)
 		return
 	}
 
@@ -286,11 +296,11 @@ func VerifyOTPAndRegister(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt primitive.DateTime `bson:"expiresAt"`
 	}
 	if err := otpCollection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&otpDoc); err != nil {
-		http.Error(w, "OTP not found or expired", http.StatusBadRequest)
+		sendJSONError(w, "OTP not found or expired", http.StatusBadRequest)
 		return
 	}
 	if time.Now().UTC().After(otpDoc.ExpiresAt.Time()) || req.OTP != otpDoc.OTP {
-		http.Error(w, "invalid or expired otp", http.StatusBadRequest)
+		sendJSONError(w, "invalid or expired otp", http.StatusBadRequest)
 		return
 	}
 
@@ -298,35 +308,35 @@ func VerifyOTPAndRegister(w http.ResponseWriter, r *http.Request) {
 	if req.DOB != "" {
 		if dob, err := parseDOB(req.DOB); err == nil {
 			if computeAge(dob) < 18 {
-				http.Error(w, "voter must be 18+", http.StatusBadRequest)
+				sendJSONError(w, "voter must be 18+", http.StatusBadRequest)
 				return
 			}
 		} else {
-			http.Error(w, "invalid dob", http.StatusBadRequest)
+			sendJSONError(w, "invalid dob", http.StatusBadRequest)
 			return
 		}
 	}
 	if req.Mobile != "" && !mobileRe.MatchString(req.Mobile) {
-		http.Error(w, "invalid mobile format", http.StatusBadRequest)
+		sendJSONError(w, "invalid mobile format", http.StatusBadRequest)
 		return
 	}
 
 	// ensure email not already registered globally (for this flow)
 	count, err := voterCollection.CountDocuments(ctx, bson.M{"email": req.Email})
 	if err == nil && count > 0 {
-		http.Error(w, "Voter account already exists. Please login to join election.", http.StatusConflict)
+		sendJSONError(w, "Voter account already exists. Please login to join election.", http.StatusConflict)
 		return
 	}
 
 	// generate password
 	rawPassword, err := genPassword(12)
 	if err != nil {
-		http.Error(w, "failed to create password", http.StatusInternalServerError)
+		sendJSONError(w, "failed to create password", http.StatusInternalServerError)
 		return
 	}
 	hashed, err := bcrypt.GenerateFromPassword([]byte(rawPassword), bcrypt.DefaultCost)
 	if err != nil {
-		http.Error(w, "failed to hash password", http.StatusInternalServerError)
+		sendJSONError(w, "failed to hash password", http.StatusInternalServerError)
 		return
 	}
 
@@ -352,7 +362,7 @@ func VerifyOTPAndRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := voterCollection.InsertOne(ctx, newVoter); err != nil {
-		http.Error(w, "failed to create voter", http.StatusInternalServerError)
+		sendJSONError(w, "failed to create voter", http.StatusInternalServerError)
 		return
 	}
 
