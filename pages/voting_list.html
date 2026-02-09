@@ -154,7 +154,15 @@
     <main class="main-content">
       <h2 style="margin-bottom: 2rem;">Voter Management</h2>
 
-      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;" class="voter-layout">
+        <style>
+          @media (max-width: 767px) {
+            .voter-layout {
+              grid-template-columns: 1fr !important;
+              gap: 1.5rem !important;
+            }
+          }
+        </style>
         <!-- Voter List -->
         <div>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">

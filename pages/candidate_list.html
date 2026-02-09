@@ -130,7 +130,16 @@
     <main class="main-content">
       <h2 style="margin-bottom: 2rem;">Candidate Management</h2>
 
-      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; align-items: start;">
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; align-items: start;"
+        class="candidate-layout">
+        <style>
+          @media (max-width: 767px) {
+            .candidate-layout {
+              grid-template-columns: 1fr !important;
+              gap: 1.5rem !important;
+            }
+          }
+        </style>
 
         <!-- Candidate List (Left) -->
         <div>

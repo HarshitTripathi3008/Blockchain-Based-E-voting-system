@@ -247,7 +247,15 @@
         </div>
 
         <!-- Charts Section -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;" class="charts-grid">
+          <style>
+            @media (max-width: 767px) {
+              .charts-grid {
+                grid-template-columns: 1fr !important;
+                gap: 1rem !important;
+              }
+            }
+          </style>
           <div class="chart-container fade-in">
             <h3 style="margin-bottom: 1rem;">Live Results</h3>
             <canvas id="resultsChart"></canvas>
