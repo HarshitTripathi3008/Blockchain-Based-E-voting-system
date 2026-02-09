@@ -58,6 +58,47 @@ const UI = {
         if (loader) loader.style.display = 'none';
     },
 
+    // Toggle Mobile Sidebar
+    toggleSidebar: () => {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        const hamburger = document.querySelector('.hamburger-btn');
+        const body = document.body;
+
+        if (sidebar && overlay && hamburger) {
+            const isActive = sidebar.classList.contains('active');
+
+            if (isActive) {
+                // Close sidebar
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+                hamburger.classList.remove('active');
+                body.classList.remove('sidebar-open');
+            } else {
+                // Open sidebar
+                sidebar.classList.add('active');
+                overlay.classList.add('active');
+                hamburger.classList.add('active');
+                body.classList.add('sidebar-open');
+            }
+        }
+    },
+
+    // Close sidebar (for overlay click)
+    closeSidebar: () => {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        const hamburger = document.querySelector('.hamburger-btn');
+        const body = document.body;
+
+        if (sidebar && overlay && hamburger) {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+            hamburger.classList.remove('active');
+            body.classList.remove('sidebar-open');
+        }
+    },
+
     // Initialize Global Componenets
     init: () => {
         // Add font link if missing

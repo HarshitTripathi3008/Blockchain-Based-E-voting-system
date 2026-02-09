@@ -142,6 +142,17 @@
 </head>
 
 <body>
+  <!-- Hamburger Menu Button (Mobile Only) -->
+  <button class="hamburger-btn" onclick="UI.toggleSidebar()" aria-label="Toggle Menu">
+    <div class="hamburger-icon">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+  </button>
+
+  <!-- Sidebar Overlay (Mobile Only) -->
+  <div class="sidebar-overlay" onclick="UI.closeSidebar()"></div>
 
   <div class="layout">
     <!-- Sidebar -->
