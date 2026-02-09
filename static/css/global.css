@@ -915,3 +915,165 @@ textarea:focus {
         overflow: hidden;
     }
 }
+
+/* ============================================ */
+/* MOBILE ORIENTATION & LAYOUT FIXES */
+/* ============================================ */
+
+/* Ensure proper viewport behavior */
+html {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+/* Fix for mobile orientation changes */
+@media (max-width: 767px) {
+    /* Prevent horizontal overflow */
+    html, body {
+        overflow-x: hidden;
+        width: 100%;
+        position: relative;
+    }
+
+    /* Ensure main content doesn't overflow */
+    .main-content {
+        width: 100%;
+        max-width: 100vw;
+        overflow-x: hidden;
+        padding: 1rem;
+        box-sizing: border-box;
+    }
+
+    /* Fix layout container */
+    .layout {
+        width: 100%;
+        max-width: 100vw;
+        overflow-x: hidden;
+    }
+
+    /* Ensure cards don't overflow */
+    .glass-card,
+    .stat-card,
+    .election-card,
+    .candidate-card,
+    .voter-card {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Fix header row wrapping */
+    .header-row {
+        flex-wrap: wrap;
+        width: 100%;
+    }
+
+    /* Ensure buttons don't cause overflow */
+    .btn,
+    .nav-btn {
+        max-width: 100%;
+        box-sizing: border-box;
+        white-space: normal;
+        word-wrap: break-word;
+    }
+
+    /* Fix form elements */
+    input,
+    select,
+    textarea {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Ensure images don't overflow */
+    img {
+        max-width: 100%;
+        height: auto;
+    }
+
+    /* Fix chart containers */
+    .chart-container {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    /* Adjust hamburger button position for better visibility */
+    .hamburger-btn {
+        top: 0.75rem;
+        left: 0.75rem;
+    }
+
+    /* Ensure main content has proper padding when hamburger is visible */
+    body:not(.sidebar-open) .main-content {
+        padding-top: 4rem; /* Space for hamburger button */
+    }
+}
+
+/* Landscape orientation fixes for mobile */
+@media (max-width: 767px) and (orientation: landscape) {
+    .sidebar {
+        width: 250px; /* Narrower sidebar in landscape */
+    }
+
+    .hamburger-btn {
+        top: 0.5rem;
+        left: 0.5rem;
+        padding: 0.5rem;
+    }
+
+    .main-content {
+        padding: 0.75rem;
+    }
+
+    /* Reduce vertical spacing in landscape */
+    .stat-grid {
+        gap: 0.75rem;
+    }
+
+    .glass-card {
+        padding: 1rem;
+    }
+}
+
+/* Portrait orientation optimizations */
+@media (max-width: 767px) and (orientation: portrait) {
+    /* Ensure proper spacing in portrait */
+    .main-content {
+        padding-bottom: 2rem; /* Extra bottom padding */
+    }
+
+    /* Stack action buttons vertically in portrait */
+    .action-buttons {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+}
+
+/* Fix for very small screens (< 375px) */
+@media (max-width: 374px) {
+    body {
+        font-size: 14px;
+    }
+
+    h1 {
+        font-size: 1.5rem;
+    }
+
+    h2 {
+        font-size: 1.25rem;
+    }
+
+    h3 {
+        font-size: 1.1rem;
+    }
+
+    .glass-card {
+        padding: 0.75rem;
+    }
+
+    .btn {
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+    }
+}
