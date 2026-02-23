@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Voter Login - BlockVotes</title>
+  <title>Voter Login - SecureVote -- E-Voting System</title>
   <link rel="stylesheet" href="/static/css/global.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
     rel="stylesheet">
@@ -37,6 +37,10 @@
       </div>
       <div style="margin-bottom: 2rem;">
         <input type="password" id="voterPassword" required placeholder="Password" autocomplete="current-password" />
+        <div style="text-align: right; margin-top: 0.5rem;">
+          <a href="#" onclick="forgotPassword(event)"
+            style="color: var(--primary-color); text-decoration: none; font-size: 0.85rem;">Forgot Password?</a>
+        </div>
       </div>
       <button type="submit" id="voterLoginBtn" class="btn btn-primary"
         style="width: 100%; background: var(--success-color);">Secure Login</button>
@@ -68,6 +72,36 @@
           }
         }, 600);
       });
+    }
+
+    async function forgotPassword(e) {
+      e.preventDefault();
+      const email = prompt("Please enter your registered Email ID to receive a new password:");
+      if (!email) return;
+      if (!/^\S+@\S+\.\S+$/.test(email)) {
+        UI.toast('Please enter a valid email address.', 'error');
+        return;
+      }
+
+      UI.showLoader('Sending new password...');
+      try {
+        const resp = await fetch('/api/voters/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim() })
+        });
+        const json = await UI.safeJson(resp);
+        if (resp.ok) {
+          UI.toast(json?.message || 'New password sent to your email.', 'success');
+        } else {
+          UI.toast(json?.message || 'Failed to reset password.', 'error');
+        }
+      } catch (err) {
+        console.error('Forgot password error', err);
+        UI.toast('Network error during password reset.', 'error');
+      } finally {
+        UI.hideLoader();
+      }
     }
 
     document.getElementById('voterLoginForm').addEventListener('submit', async function (e) {

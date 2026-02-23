@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Election Commission Dashboard - BlockVotes</title>
+  <title>Company Dashboard - SecureVote -- E-Voting System</title>
   <link rel="icon" type="image/png" href="/static/logo3.png">
   <link rel="stylesheet" href="/static/css/global.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
@@ -164,10 +164,10 @@
     <aside class="sidebar">
       <div style="text-align: center; margin-bottom: 3rem;">
         <img src="/static/logo3.png" alt="Logo" style="width: 50px; margin-bottom: 0.5rem;" />
-        <h3 style="margin:0;">BlockVotes</h3>
+        <h3 style="margin:0;">SecureVote <br> E-Voting System</h3>
       </div>
       <nav style="flex: 1;">
-        <button id="dashboardBtn" class="nav-btn active">Dashboard</button>
+        <button id="dashboardBtn" class="nav-btn active">All Elections</button>
         <button id="candidatesBtn" class="nav-btn detail-view-only" style="display:none;">Candidate List</button>
         <button id="votersBtn" class="nav-btn detail-view-only" style="display:none;">Voter List</button>
         <button id="createBtn" class="nav-btn">Create Election</button>
@@ -194,13 +194,27 @@
         </div>
       </div>
 
-      <!-- VIEW: ALL ELECTIONS (Default if no address) -->
-      <div id="allElectionsView" style="display: none;">
-        <h3 style="margin-bottom: 1rem;">All Campaigns</h3>
+      <!-- View 1: All Elections List -->
+      <div id="allElectionsView" class="fade-in">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Elections</div>
+            <div id="totalElectionsCount" class="stat-val">-</div>
+          </div>
+          <div class="stat-card" style="border: 1px dashed var(--primary-color); cursor: pointer;"
+            onclick="window.location.href='create_election.html'">
+            <div style="height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+              <div style="font-size: 1.5rem; color: var(--primary-color); margin-bottom: 0.5rem;">+</div>
+              <div style="font-weight:600; color: #fff;">Create New Election</div>
+            </div>
+          </div>
+        </div>
+
         <div class="table-container">
           <table id="electionsTable">
             <thead>
               <tr>
+                <th>Election Name</th>
                 <th>Election Address</th>
                 <th>Status</th>
                 <th>Start Date</th>
@@ -209,7 +223,9 @@
               </tr>
             </thead>
             <tbody id="electionsTableBody">
-              <!-- populated by JS -->
+              <tr>
+                <td colspan="6" style="text-align:center; padding: 2rem;">Loading...</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -224,8 +240,8 @@
           <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div>
               <h3 style="margin-bottom: 0.5rem;">Current Election</h3>
-              <h1 id="electionName" style="color: var(--accent-color);">—</h1>
-              <p id="electionDesc" style="color: var(--text-muted); margin-top: 0.5rem;">—</p>
+              <h1 id="electionName" style="color: var(--accent-color);">&mdash;</h1>
+              <p id="electionDesc" style="color: var(--text-muted); margin-top: 0.5rem;">&mdash;</p>
             </div>
             <div id="electionStatusBadge" class="status-badge status-ongoing">LOADING</div>
           </div>
@@ -234,15 +250,15 @@
         <div class="stat-grid">
           <div class="stat-card">
             <div class="stat-label">Total Candidates</div>
-            <div id="candidatesCount" class="stat-val">—</div>
+            <div id="candidatesCount" class="stat-val">&mdash;</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Total Voters</div>
-            <div id="votersCount" class="stat-val">—</div>
+            <div id="votersCount" class="stat-val">&mdash;</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Total Votes Cast</div>
-            <div id="votesCount" class="stat-val">—</div>
+            <div id="votesCount" class="stat-val">&mdash;</div>
           </div>
         </div>
 
@@ -280,7 +296,15 @@
     // --- utility helpers (safe JSON parsing) ---
     let resultsChart = null;
 
-
+    function escapeHtml(text) {
+      if (!text) return '';
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
 
     function getElectionAddress() {
       const params = new URLSearchParams(window.location.search);
@@ -339,12 +363,15 @@
         const resp = await fetch('/api/elections');
         const json = await UI.safeJson(resp);
 
+        document.getElementById('totalElectionsCount').textContent = json.count || 0;
+
+        // Render table
         const tbody = document.getElementById('electionsTableBody');
         tbody.innerHTML = '';
 
         const list = json.data || [];
         if (list.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: #888;">No elections found. Create one to get started.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem; color: #888;">No elections found. Create one to get started.</td></tr>';
           return;
         }
 
@@ -354,7 +381,8 @@
           const statusClass = e.status === 'ENDED' ? 'status-ended' : (e.status === 'ONGOING' ? 'status-ongoing' : 'status-scheduled');
 
           tr.innerHTML = `
-            <td style="font-family:monospace;">${shortAddr}</td>
+            <td style="font-weight:600; color:var(--text-foreground);">${escapeHtml(e.election_name || 'Unnamed')}</td>
+            <td style="font-family:monospace; color:var(--text-muted); font-size:0.9rem;">${shortAddr}</td>
             <td><span class="status-badge ${statusClass}">${e.status || 'UNKNOWN'}</span></td>
             <td>${new Date(e.start_date).toLocaleString()}</td>
             <td>${new Date(e.end_date).toLocaleString()}</td>
@@ -505,7 +533,7 @@
     }
 
     async function confirmClearDatabase() {
-      if (!confirm("⚠️ DANGER ZONE ⚠️\n\nAre you sure you want to CLEAR THE ENTIRE DATABASE?\n\nThis will permanently delete:\n- All Candidates\n- All OTPs\n- All Audit Logs\n- All Election Metadata\n\nThis action cannot be undone.")) {
+      if (!confirm("&#9888;&#65039; DANGER ZONE &#9888;&#65039;\n\nAre you sure you want to CLEAR THE ENTIRE DATABASE?\n\nThis will permanently delete:\n- All Candidates\n- All OTPs\n- All Audit Logs\n- All Election Metadata\n\nThis action cannot be undone.")) {
         return;
       }
 
@@ -593,6 +621,7 @@
       window.location.href = `${page}${q}`;
     }
 
+
     document.getElementById('candidatesBtn').addEventListener('click', () => navTo('candidate_list.html'));
     document.getElementById('votersBtn').addEventListener('click', () => navTo('voting_list.html'));
     document.getElementById('dashboardBtn').addEventListener('click', () => window.location.href = 'company_dashboard.html'); // Always go to root list
@@ -600,7 +629,7 @@
     document.getElementById('logoutBtn').addEventListener('click', function () {
       Cookies.remove('company_email', { path: '/' });
       Cookies.remove('address', { path: '/' });
-      window.location.href = 'homepage.html';
+      window.location.href = 'company_login.html';
     });
 
     document.getElementById('viewCandidates').addEventListener('click', () => navTo('candidate_list.html'));

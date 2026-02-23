@@ -1,4 +1,4 @@
-package controllers
+﻿package controllers
 
 import (
 	"context"
@@ -23,8 +23,12 @@ type ElectionMetadata struct {
 	StartDate time.Time `bson:"start_date" json:"start_date"`
 	EndDate   time.Time `bson:"end_date" json:"end_date"`
 
-	// Status derived derived from time or manual override
+	// Status derived from time or manual override
 	Status string `bson:"status" json:"status"` // "UPCOMING", "ONGOING", "ENDED"
+
+	// Display Details
+	ElectionName string `bson:"election_name" json:"election_name"`
+	ElectionDesc string `bson:"election_desc" json:"election_desc"`
 }
 
 var metadataCollection *mongo.Collection
@@ -32,11 +36,11 @@ var metadataCollection *mongo.Collection
 // InitMetadataCollection initializes the collection
 func InitMetadataCollection(client *mongo.Client, dbName string) {
 	metadataCollection = client.Database(dbName).Collection("election_metadata")
-	fmt.Println("✅ Initialized election_metadata collection")
+	fmt.Println("[OK] Initialized election_metadata collection")
 }
 
-// EnsureMetadata creates a default metadata entry if one doesn't exist, or extends it if expired.
-func EnsureMetadata(electionAddr string) {
+// EnsureMetadata creates a default metadata entry if one doesn't exist, and stores name/desc.
+func EnsureMetadata(electionAddr, name, desc string) {
 	if metadataCollection == nil {
 		return
 	}
@@ -57,17 +61,29 @@ func EnsureMetadata(electionAddr string) {
 			StartDate:       now.Add(-1 * time.Hour), // Start slightly in past to avoid timezone races
 			EndDate:         now.Add(defaultDuration),
 			Status:          "ONGOING",
+			ElectionName:    name,
+			ElectionDesc:    desc,
 		}
 		metadataCollection.InsertOne(ctx, newMeta)
-		fmt.Printf("✅ Created metadata for %s (Expires: %s)\n", electionAddr, newMeta.EndDate)
+		fmt.Printf("[OK] Created metadata for %s (Expires: %s)\n", electionAddr, newMeta.EndDate)
 
 	case nil:
-		// Exists - Check if expired (Strict check, no auto-extend)
+		// Exists - Check if expired
 		if now.After(meta.EndDate) && meta.Status != "ENDED" {
-			// Mark as ENDED if technically expired but not marked yet?
-			// Or just leave it as ONGOING but IsElectionActive will return false.
-			// Let's leave it, but ensure we DON'T extend.
-			fmt.Printf("ℹ️ Election %s is past EndDate (%s)\n", electionAddr, meta.EndDate)
+			fmt.Printf("[INFO] Election %s is past EndDate (%s)\n", electionAddr, meta.EndDate)
+		}
+
+		// Update Name/Desc if missing and provided
+		if (meta.ElectionName == "" && name != "") || (meta.ElectionDesc == "" && desc != "") {
+			update := bson.M{"$set": bson.M{}}
+			if name != "" {
+				update["$set"].(bson.M)["election_name"] = name
+			}
+			if desc != "" {
+				update["$set"].(bson.M)["election_desc"] = desc
+			}
+			metadataCollection.UpdateOne(ctx, bson.M{"election_address": electionAddr}, update)
+			fmt.Printf("[OK] Updated metadata details for %s\n", electionAddr)
 		}
 	}
 }

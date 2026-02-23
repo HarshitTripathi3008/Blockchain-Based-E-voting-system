@@ -9,25 +9,20 @@ contract ElectionFact {
         string el_d;
     }
     
-    mapping(string => ElectionDet) public companyEmail;
+    mapping(string => ElectionDet[]) public companyEmail;
     
     function createElection(string memory email, string memory election_name, string memory election_description) public {
         address newElection = address(new Election(msg.sender, election_name, election_description));
         
-        companyEmail[email] = ElectionDet({
+        companyEmail[email].push(ElectionDet({
             deployedAddress: newElection,
             el_n: election_name,
             el_d: election_description
-        });
+        }));
     }
     
-    function getDeployedElection(string memory email) public view returns (address, string memory, string memory) {
-        ElectionDet memory election = companyEmail[email];
-        if(election.deployedAddress == address(0)) {
-            return (address(0), "", "Create an election.");
-        } else {
-            return (election.deployedAddress, election.el_n, election.el_d);
-        }
+    function getDeployedElections(string memory email) public view returns (ElectionDet[] memory) {
+        return companyEmail[email];
     }
 }
 
@@ -85,7 +80,7 @@ contract Election {
         numCandidates++;
     }
     
-    function vote(uint256 candidateID, string memory e) public {
+    function vote(uint256 candidateID, string memory e) public owner {
         require(!voters[e].voted, "Error: You cannot double vote");
         require(candidateID < numCandidates, "Error: Invalid candidate ID");
         

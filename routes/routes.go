@@ -1,4 +1,4 @@
-package routes
+﻿package routes
 
 import (
 	"log"
@@ -63,24 +63,25 @@ func SetupRoutes() *mux.Router {
 	api.HandleFunc("/voters/register", controllers.RegisterVoter).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters/send-otp", controllers.SendOTP).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters/verify-otp-register", controllers.VerifyOTPAndRegister).Methods(http.MethodPost, http.MethodOptions)
-	api.HandleFunc("/voters/join", controllers.JoinElection).Methods(http.MethodPost, http.MethodOptions)             // NEW
 	api.HandleFunc("/voters/me/elections", controllers.GetVoterElections).Methods(http.MethodGet, http.MethodOptions) // NEW
+	api.HandleFunc("/voters/forgot-password", controllers.ForgotPassword).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voter/authenticate", controllers.AuthenticateVoter).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters", controllers.GetAllVoters).Methods(http.MethodGet, http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters/{voterId}/card", controllers.GenerateVoterID).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/voters/{voterId}/card/email", controllers.EmailVoterID).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters/{voterId}", controllers.UpdateVoter).Methods(http.MethodPut, http.MethodOptions)
 	api.HandleFunc("/voters/{voterId}", controllers.DeleteVoter).Methods(http.MethodDelete, http.MethodOptions)
-	api.HandleFunc("/voters/{voterId}/approve", controllers.ApproveVoter).Methods(http.MethodPost, http.MethodOptions)              // NEW
-	api.HandleFunc("/elections/{address}/voters/add", controllers.AddVotersToElection).Methods(http.MethodPost, http.MethodOptions) // NEW BULK IMPORT
+	api.HandleFunc("/voters/{voterId}/approve", controllers.ApproveVoter).Methods(http.MethodPost, http.MethodOptions)                              // NEW
+	api.HandleFunc("/voters/{voterId}/reset-password", controllers.AdminResetVoterPassword).Methods(http.MethodPost, http.MethodOptions)            // ADMIN RESET
+	api.HandleFunc("/elections/{address}/voters/add", controllers.AddVotersToElection).Methods(http.MethodPost, http.MethodOptions)                 // NEW BULK IMPORT
+	api.HandleFunc("/elections/{address}/voters/reset-passwords", controllers.BulkResetVoterPasswords).Methods(http.MethodPost, http.MethodOptions) // BULK SEND PASSWORDS
 	api.HandleFunc("/voter/resultMail", controllers.ResultMail).Methods(http.MethodPost, http.MethodOptions)
 	// ----------------------------
 	// UPLOAD ROUTES
 	// ----------------------------
 	// Unified hybrid upload route
 	api.HandleFunc("/upload/unified", controllers.UnifiedUploadHandler).Methods(http.MethodPost, http.MethodOptions)
-	// Kept for backward compatibility if needed, but pointing to unified
-	api.HandleFunc("/upload/cloudinary", controllers.UnifiedUploadHandler).Methods(http.MethodPost, http.MethodOptions)
+	api.HandleFunc("/upload/s3", controllers.UnifiedUploadHandler).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/upload/gdrive", controllers.UnifiedUploadHandler).Methods(http.MethodPost, http.MethodOptions)
 
 	// ----------------------------

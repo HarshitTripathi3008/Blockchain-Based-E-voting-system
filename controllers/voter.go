@@ -1,24 +1,26 @@
-package controllers
+﻿package controllers
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"mime/multipart"
 	"net/http"
+	"net/smtp"
+	"net/textproto"
 	"os"
 	"regexp"
 	"time"
 
-	"encoding/base64"
-
 	"github.com/gorilla/mux"
-	"github.com/sendgrid/sendgrid-go"
-	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 
 	"MAJOR-PROJECT/bindings"
@@ -39,12 +41,23 @@ type Voter struct {
 	Password      string              `bson:"password" json:"-"`
 	FullName      string              `bson:"full_name,omitempty" json:"full_name,omitempty"`
 	DOB           time.Time           `bson:"dob,omitempty" json:"dob,omitempty"`
-	Address       string              `bson:"address,omitempty" json:"address,omitempty"`
+	RollNo        string              `bson:"roll_no,omitempty" json:"roll_no,omitempty"`
 	Mobile        string              `bson:"mobile,omitempty" json:"mobile,omitempty"`
-	FatherName    string              `bson:"father_name,omitempty" json:"father_name,omitempty"`
-	MotherName    string              `bson:"mother_name,omitempty" json:"mother_name,omitempty"`
+	Gender        string              `bson:"gender,omitempty" json:"gender,omitempty"`
+	Year          string              `bson:"year,omitempty" json:"year,omitempty"`
 	PhotoURL      string              `bson:"photo_url,omitempty" json:"photo_url,omitempty"`
 	Registrations []VoterRegistration `bson:"registrations" json:"registrations"`
+}
+
+type Student struct {
+	ID       primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Email    string             `bson:"email" json:"email"`
+	FullName string             `bson:"full_name" json:"full_name"`
+	RollNo   string             `bson:"roll_no" json:"roll_no"`
+	Mobile   string             `bson:"mobile" json:"mobile"`
+	Gender   string             `bson:"gender" json:"gender"`
+	Year     string             `bson:"year" json:"year"`
+	DOB      time.Time          `bson:"dob" json:"dob"`
 }
 
 type VoterRequest struct {
@@ -52,10 +65,10 @@ type VoterRequest struct {
 	Password        string `json:"password"`
 	FullName        string `json:"full_name,omitempty"`
 	DOB             string `json:"dob,omitempty"` // expect "YYYY-MM-DD"
-	Address         string `json:"address,omitempty"`
+	RollNo          string `json:"roll_no,omitempty"`
 	Mobile          string `json:"mobile,omitempty"`
-	FatherName      string `json:"father_name,omitempty"`
-	MotherName      string `json:"mother_name,omitempty"`
+	Gender          string `json:"gender,omitempty"`
+	Year            string `json:"year,omitempty"`
 	PhotoURL        string `json:"photo_url,omitempty"`
 	ElectionName    string `json:"election_name,omitempty"`
 	ElectionAddress string `json:"election_address,omitempty"`
@@ -89,12 +102,38 @@ var otpCollection *mongo.Collection
 // Initialize collections
 func InitVoterCollection(client *mongo.Client, dbName string) {
 	voterCollection = client.Database(dbName).Collection("voters")
-	fmt.Println("✅ Initialized voters collection")
+
+	// Create fast lookup index for extreme concurrency
+	indexModel := mongo.IndexModel{Keys: bson.M{"email": 1}, Options: options.Index().SetUnique(true)}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, _ = voterCollection.Indexes().CreateOne(ctx, indexModel)
+
+	fmt.Println("[OK] Initialized voters collection with indexes")
 }
 
 func InitOTPCollection(client *mongo.Client, dbName string) {
 	otpCollection = client.Database(dbName).Collection("otps")
-	fmt.Println("✅ Initialized OTP collection")
+
+	indexModel := mongo.IndexModel{Keys: bson.M{"email": 1}}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, _ = otpCollection.Indexes().CreateOne(ctx, indexModel)
+
+	fmt.Println("[OK] Initialized OTP collection with indexes")
+}
+
+var studentCollection *mongo.Collection
+
+func InitStudentCollection(client *mongo.Client, dbName string) {
+	studentCollection = client.Database(dbName).Collection("students")
+
+	indexModel := mongo.IndexModel{Keys: bson.M{"email": 1}, Options: options.Index().SetUnique(true)}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, _ = studentCollection.Indexes().CreateOne(ctx, indexModel)
+
+	fmt.Println("[OK] Initialized Students collection with indexes")
 }
 
 func withVoterCORS(w http.ResponseWriter) {
@@ -254,7 +293,20 @@ func SendOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = json.NewEncoder(w).Encode(VoterResponse{Status: "success", Message: "OTP sent"})
+	// Try to find student data
+	var studentData *Student
+	if studentCollection != nil {
+		var s Student
+		if err := studentCollection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&s); err == nil {
+			studentData = &s
+		}
+	}
+
+	resp := VoterResponse{Status: "success", Message: "OTP sent"}
+	if studentData != nil {
+		resp.Data = studentData
+	}
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // --------------------------
@@ -278,8 +330,8 @@ func VerifyOTPAndRegister(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
-	if req.Email == "" || req.OTP == "" {
-		sendJSONError(w, "email and otp required", http.StatusBadRequest)
+	if req.Email == "" {
+		sendJSONError(w, "email required", http.StatusBadRequest)
 		return
 	}
 	if otpCollection == nil || voterCollection == nil {
@@ -290,25 +342,14 @@ func VerifyOTPAndRegister(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// fetch OTP doc
-	var otpDoc struct {
-		OTP       string             `bson:"otp"`
-		ExpiresAt primitive.DateTime `bson:"expiresAt"`
-	}
-	if err := otpCollection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&otpDoc); err != nil {
-		sendJSONError(w, "OTP not found or expired", http.StatusBadRequest)
-		return
-	}
-	if time.Now().UTC().After(otpDoc.ExpiresAt.Time()) || req.OTP != otpDoc.OTP {
-		sendJSONError(w, "invalid or expired otp", http.StatusBadRequest)
-		return
-	}
+	// By-passing OTP logic:
+	// The admin can register a voter directly without an OTP verification step.
 
 	// basic validations
 	if req.DOB != "" {
 		if dob, err := parseDOB(req.DOB); err == nil {
-			if computeAge(dob) < 18 {
-				sendJSONError(w, "voter must be 18+", http.StatusBadRequest)
+			if computeAge(dob) < 16 {
+				sendJSONError(w, "voter must be 16+", http.StatusBadRequest)
 				return
 			}
 		} else {
@@ -343,15 +384,15 @@ func VerifyOTPAndRegister(w http.ResponseWriter, r *http.Request) {
 	dobTime, _ := parseDOB(req.DOB)
 
 	newVoter := Voter{
-		Email:      req.Email,
-		Password:   string(hashed),
-		FullName:   req.FullName,
-		DOB:        dobTime,
-		Mobile:     req.Mobile,
-		Address:    req.Address,
-		FatherName: req.FatherName,
-		MotherName: req.MotherName,
-		PhotoURL:   req.PhotoURL,
+		Email:    req.Email,
+		Password: string(hashed),
+		FullName: req.FullName,
+		DOB:      dobTime,
+		Mobile:   req.Mobile,
+		RollNo:   req.RollNo,
+		Gender:   req.Gender,
+		Year:     req.Year,
+		PhotoURL: req.PhotoURL,
 		Registrations: []VoterRegistration{
 			{
 				ElectionAddress: req.ElectionAddress,
@@ -366,12 +407,11 @@ func VerifyOTPAndRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// delete OTP record
-	_, _ = otpCollection.DeleteMany(ctx, bson.M{"email": req.Email})
+	// Removed OTP deletion since we bypassed it
 
 	// email password to voter
 	body := GenerateWelcomeEmail(req.FullName, req.Email, rawPassword, req.ElectionAddress)
-	subject := "Welcome to BlockVotes - Account Credentials"
+	subject := "Welcome to SecureVote - Account Credentials"
 	if err := sendEmail(req.Email, subject, body); err != nil {
 		fmt.Printf("sendEmail error (password email): %v\n", err)
 	}
@@ -403,7 +443,7 @@ func RegisterVoter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// parse and validate DOB → age >= 18
+	// parse and validate DOB -> age >= 18
 	var dob time.Time
 	if req.DOB != "" {
 		p, err := parseDOB(req.DOB)
@@ -486,15 +526,15 @@ func RegisterVoter(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newVoter := Voter{
-		Email:      req.Email,
-		Password:   string(hashed),
-		FullName:   req.FullName,
-		DOB:        dob,
-		Address:    req.Address,
-		Mobile:     req.Mobile,
-		FatherName: req.FatherName,
-		MotherName: req.MotherName,
-		PhotoURL:   req.PhotoURL,
+		Email:    req.Email,
+		Password: string(hashed),
+		FullName: req.FullName,
+		DOB:      dob,
+		RollNo:   req.RollNo,
+		Mobile:   req.Mobile,
+		Gender:   req.Gender,
+		Year:     req.Year,
+		PhotoURL: req.PhotoURL,
 		Registrations: []VoterRegistration{
 			{
 				ElectionAddress: req.ElectionAddress,
@@ -640,15 +680,15 @@ func GetAllVoters(w http.ResponseWriter, r *http.Request) {
 		}
 
 		vlist = append(vlist, map[string]interface{}{
-			"id":          id,
-			"email":       v.Email,
-			"full_name":   v.FullName,
-			"dob":         dobStr,
-			"address":     v.Address,
-			"mobile":      v.Mobile,
-			"father_name": v.FatherName,
-			"mother_name": v.MotherName,
-			"status":      status, // Add status to response
+			"id":        id,
+			"email":     v.Email,
+			"full_name": v.FullName,
+			"dob":       dobStr,
+			"roll_no":   v.RollNo,
+			"mobile":    v.Mobile,
+			"gender":    v.Gender,
+			"year":      v.Year,
+			"status":    status,
 		})
 	}
 
@@ -726,8 +766,8 @@ func UpdateVoter(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.Address != "" {
-		update["address"] = req.Address
+	if req.RollNo != "" {
+		update["roll_no"] = req.RollNo
 	}
 	if req.Mobile != "" {
 		if !mobileRe.MatchString(req.Mobile) {
@@ -737,11 +777,11 @@ func UpdateVoter(w http.ResponseWriter, r *http.Request) {
 		}
 		update["mobile"] = req.Mobile
 	}
-	if req.FatherName != "" {
-		update["father_name"] = req.FatherName
+	if req.Gender != "" {
+		update["gender"] = req.Gender
 	}
-	if req.MotherName != "" {
-		update["mother_name"] = req.MotherName
+	if req.Year != "" {
+		update["year"] = req.Year
 	}
 	if req.PhotoURL != "" {
 		update["photo_url"] = req.PhotoURL
@@ -808,78 +848,6 @@ func DeleteVoter(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(VoterResponse{Status: "success", Message: "voter deleted successfully"})
 }
 
-// ===== NEW: JoinElection =====
-func JoinElection(w http.ResponseWriter, r *http.Request) {
-	withVoterCORS(w)
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Expects { "voter_id": "...", "election_address": "..." }
-	var req struct {
-		VoterID         string `json:"voter_id"`
-		ElectionAddress string `json:"election_address"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Invalid body"})
-		return
-	}
-
-	if req.VoterID == "" || req.ElectionAddress == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "voter_id and election_address required"})
-		return
-	}
-
-	objID, err := primitive.ObjectIDFromHex(req.VoterID)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Invalid voter_id"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Check if already registered
-	var voter Voter
-	if err := voterCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&voter); err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Voter not found"})
-		return
-	}
-
-	for _, reg := range voter.Registrations {
-		if reg.ElectionAddress == req.ElectionAddress {
-			w.WriteHeader(http.StatusConflict)
-			_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Already joined this election"})
-			return
-		}
-	}
-
-	// Add registration
-	newReg := VoterRegistration{
-		ElectionAddress: req.ElectionAddress,
-		Status:          "Verified", // Self-join implies verified if logged in? Or maybe Pending? Let's say Verified for simplicity of UX now.
-		RegisteredAt:    time.Now().UTC(),
-	}
-
-	_, err = voterCollection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$push": bson.M{"registrations": newReg}})
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Failed to join election"})
-		return
-	}
-
-	_ = json.NewEncoder(w).Encode(VoterResponse{Status: "success", Message: "Successfully joined election"})
-}
-
 // ===== NEW: GetVoterElections =====
 func GetVoterElections(w http.ResponseWriter, r *http.Request) {
 	withVoterCORS(w)
@@ -918,44 +886,123 @@ func GetVoterElections(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
-// sendEmail using SendGrid API
+// sendEmail sends an HTML email via Hostinger SMTP (Asynchronously)
 func sendEmail(to, subject, htmlBody string) error {
-	return sendEmailWithAttachment(to, subject, htmlBody, "", nil)
+	select {
+	case emailQueue <- emailJob{To: to, Subject: subject, HTMLBody: htmlBody}:
+		// queued successfully
+		return nil
+	default:
+		// Queue full, fallback to synchronous (or you could return an error)
+		fmt.Printf("[WARN] Email queue full, sending synchronously to: %s\n", to)
+		return sendEmailWithAttachment(to, subject, htmlBody, "", nil)
+	}
 }
 
-// sendEmailWithAttachment sends email with optional PDF attachment
-func sendEmailWithAttachment(to, subject, htmlBody, filename string, attachmentData []byte) error {
-	apiKey := os.Getenv("SENDGRID_API_KEY")
-	fromEmail := os.Getenv("SENDER_EMAIL")
+// Global email queue
+type emailJob struct {
+	To             string
+	Subject        string
+	HTMLBody       string
+	Filename       string
+	AttachmentData []byte
+}
 
-	if apiKey == "" || fromEmail == "" {
-		return fmt.Errorf("sendgrid not configured: set SENDGRID_API_KEY and SENDER_EMAIL")
+var emailQueue = make(chan emailJob, 5000) // buffer 5000 emails to prevent API timeout on extreme bulk imports
+
+func init() {
+	go emailWorker()
+}
+
+func emailWorker() {
+	// Respect custom SMTP limits (e.g., max 2-3 emails per second)
+	ticker := time.NewTicker(400 * time.Millisecond)
+	for job := range emailQueue {
+		<-ticker.C // throttle
+		err := sendEmailWithAttachment(job.To, job.Subject, job.HTMLBody, job.Filename, job.AttachmentData)
+		if err != nil {
+			fmt.Printf("[ERROR] Background email worker failed for %s: %v\n", job.To, err)
+			// Simple retry logic could go here
+		} else {
+			fmt.Printf("[OK] Background email sent to %s\n", job.To)
+		}
+	}
+}
+
+// sendEmailWithAttachment sends an HTML email with an optional PDF attachment via Hostinger SMTP
+func sendEmailWithAttachment(to, subject, htmlBody, filename string, attachmentData []byte) error {
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := os.Getenv("SMTP_PORT")
+	smtpUser := os.Getenv("SMTP_USER")
+	smtpPass := os.Getenv("SMTP_PASS")
+	senderEmail := os.Getenv("SENDER_EMAIL")
+	senderName := os.Getenv("SENDER_NAME")
+
+	if smtpHost == "" {
+		smtpHost = "smtp.hostinger.com"
+	}
+	if smtpPort == "" {
+		smtpPort = "587"
+	}
+	if smtpUser == "" || smtpPass == "" || senderEmail == "" {
+		return fmt.Errorf("SMTP not configured: set SMTP_USER, SMTP_PASS, and SENDER_EMAIL")
+	}
+	if senderName == "" {
+		senderName = "SecureVote"
 	}
 
-	from := mail.NewEmail("Voting System", fromEmail)
-	toAddr := mail.NewEmail("", to)
+	fromHeader := fmt.Sprintf("%s <%s>", senderName, senderEmail)
 
-	// Create message
-	message := mail.NewSingleEmail(from, subject, toAddr, "", htmlBody)
+	var rawMsg bytes.Buffer
 
 	if len(attachmentData) > 0 {
-		a := mail.NewAttachment()
+		// multipart/mixed for attachments
+		mw := multipart.NewWriter(&rawMsg)
+		boundary := mw.Boundary()
+
+		rawMsg.Reset()
+		rawMsg.WriteString(fmt.Sprintf("From: %s\r\n", fromHeader))
+		rawMsg.WriteString(fmt.Sprintf("To: %s\r\n", to))
+		rawMsg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+		rawMsg.WriteString("MIME-Version: 1.0\r\n")
+		rawMsg.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=\"%s\"\r\n\r\n", boundary))
+
+		// HTML body part
+		rawMsg.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+		rawMsg.WriteString("Content-Type: text/html; charset=UTF-8\r\n\r\n")
+		rawMsg.WriteString(htmlBody)
+		rawMsg.WriteString("\r\n")
+
+		// Attachment part
+		rawMsg.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Type", "application/pdf")
+		h.Set("Content-Transfer-Encoding", "base64")
+		h.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+		for k, vs := range h {
+			for _, v := range vs {
+				rawMsg.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
+			}
+		}
+		rawMsg.WriteString("\r\n")
 		encoded := base64.StdEncoding.EncodeToString(attachmentData)
-		a.SetContent(encoded)
-		a.SetType("application/pdf")
-		a.SetFilename(filename)
-		a.SetDisposition("attachment")
-		message.AddAttachment(a)
+		rawMsg.WriteString(encoded)
+		rawMsg.WriteString("\r\n")
+		rawMsg.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
+	} else {
+		// simple HTML email
+		rawMsg.WriteString(fmt.Sprintf("From: %s\r\n", fromHeader))
+		rawMsg.WriteString(fmt.Sprintf("To: %s\r\n", to))
+		rawMsg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+		rawMsg.WriteString("MIME-Version: 1.0\r\n")
+		rawMsg.WriteString("Content-Type: text/html; charset=UTF-8\r\n\r\n")
+		rawMsg.WriteString(htmlBody)
 	}
 
-	client := sendgrid.NewSendClient(apiKey)
-	resp, err := client.Send(message)
+	auth := smtp.PlainAuth("", smtpUser, smtpPass, smtpHost)
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, senderEmail, []string{to}, rawMsg.Bytes())
 	if err != nil {
-		return fmt.Errorf("sendgrid send error: %w", err)
-	}
-	// SendGrid returns 202 Accepted on success
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("sendgrid returned status %d: %s", resp.StatusCode, resp.Body)
+		return fmt.Errorf("smtp send error: %w", err)
 	}
 	return nil
 }
@@ -1012,15 +1059,15 @@ func GetElectionVoters(w http.ResponseWriter, r *http.Request) {
 		}
 
 		vlist = append(vlist, map[string]interface{}{
-			"id":          v.ID.Hex(),
-			"email":       v.Email,
-			"full_name":   v.FullName,
-			"dob":         dobStr,
-			"address":     v.Address,
-			"mobile":      v.Mobile,
-			"father_name": v.FatherName,
-			"mother_name": v.MotherName,
-			"status":      status,
+			"id":        v.ID.Hex(),
+			"email":     v.Email,
+			"full_name": v.FullName,
+			"dob":       dobStr,
+			"roll_no":   v.RollNo,
+			"mobile":    v.Mobile,
+			"gender":    v.Gender,
+			"year":      v.Year,
+			"status":    status,
 		})
 	}
 
@@ -1105,16 +1152,7 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Fetch Audit Logs
-	logs, err := GetElectionLogs(req.ElectionAddress)
-	if err != nil {
-		fmt.Printf("Error fetching logs for mail: %v\n", err)
-		// continue without logs if fail
-		logs = []AuditLog{}
-	}
-
-	// 2. Fetch Candidates for the table (need DB access)
-	// 2. Fetch Candidates from Blockchain (Source of Truth)
+	// Fetch Candidates from Blockchain
 	var candidates []map[string]interface{}
 
 	client, err := getClient()
@@ -1133,7 +1171,6 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 			} else {
 				n := count.Int64()
 				for i := int64(0); i < n; i++ {
-					// GetCandidate returns: name, description, imageHash, voteCount, email, error
 					name, _, _, votes, _, err := contract.GetCandidate(&bind.CallOpts{Context: context.Background()}, big.NewInt(i))
 					if err != nil {
 						fmt.Printf("ResultMail: failed to get candidate %d: %v\n", i, err)
@@ -1148,9 +1185,9 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Fallback to DB if chain fetch failed entirely (optional, but keep for robustness if chain is down)
+	// Fallback to DB if blockchain fetch failed
 	if len(candidates) == 0 && candidateCollection != nil {
-		fmt.Println("ResultMail: Warning - Chain fetch failed or empty, falling back to DB (votes may be 0/stale)")
+		fmt.Println("ResultMail: chain fetch failed, falling back to DB")
 		curC, errC := candidateCollection.Find(ctx, bson.M{"electionAddress": req.ElectionAddress})
 		if errC == nil {
 			var rawCands []map[string]interface{}
@@ -1160,12 +1197,8 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 3. Generate Rich HTML Email
-	// 3. Generate Audit PDF
-	auditPDF, _ := GenerateAuditLogPDF(logs, req.ElectionName)
-
-	// 4. Generate Rich HTML Email
-	htmlBody := GenerateResultsEmailHTML(req.ElectionName, req.WinnerCandidate, candidates, logs)
+	// Build and send the results email (no PDF, no audit log)
+	htmlBody := GenerateResultsEmailHTML(req.ElectionName, req.WinnerCandidate, candidates)
 	subject := fmt.Sprintf("Results: %s - Winner Announced", req.ElectionName)
 
 	var sendErrs []string
@@ -1174,20 +1207,15 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 		if v.Email == "" {
 			continue
 		}
-		// Send with attachment
-		err := sendEmailWithAttachment(v.Email, subject, htmlBody, "AuditLogs.pdf", auditPDF)
-		if err != nil {
+		if err := sendEmail(v.Email, subject, htmlBody); err != nil {
 			sendErrs = append(sendErrs, fmt.Sprintf("%s: %v", v.Email, err))
 			fmt.Printf("sendEmail error for %s: %v\n", v.Email, err)
 		}
 	}
 
-	// winner mail (reuse rich body or custom? stick to simple for winner or same?)
-	// User asked for "after election ends everybody gets a copy of election logs"
-	// Winner is part of everybody usually, but let's give them the same rich context
+	// Also notify the winner candidate
 	if req.CandidateEmail != "" {
-		// potentially customize subject for winner
-		winnerSubject := "You Won! " + subject
+		winnerSubject := "Congratulations! You Won - " + req.ElectionName
 		if err := sendEmail(req.CandidateEmail, winnerSubject, htmlBody); err != nil {
 			sendErrs = append(sendErrs, fmt.Sprintf("%s: %v", req.CandidateEmail, err))
 		}
@@ -1416,7 +1444,268 @@ func AddVotersToElection(w http.ResponseWriter, r *http.Request) {
 		Data: map[string]interface{}{
 			"added":   successCount,
 			"skipped": alreadyCount,
-			"errors":  errCount,
 		},
+	})
+}
+
+// ===== ForgotPassword =====
+func ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	withVoterCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req VoterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Invalid request body"})
+		return
+	}
+	if req.Email == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "email is required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var voterInfo Voter
+	// Look up the voter by email
+	if err := voterCollection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&voterInfo); err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Voter account not found"})
+		return
+	}
+
+	// Generate a new password
+	rawPassword, err := genPassword(12)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Failed to generate new password"})
+		return
+	}
+	hashed, err := bcrypt.GenerateFromPassword([]byte(rawPassword), bcrypt.DefaultCost)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Failed to hash password"})
+		return
+	}
+
+	// Update the voter's password in the database
+	_, err = voterCollection.UpdateOne(ctx, bson.M{"email": req.Email}, bson.M{"$set": bson.M{"password": string(hashed)}})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Failed to update password"})
+		return
+	}
+
+	// Email the new password to the voter
+	subject := "Your New Password for SecureVote"
+	body := GenerateForgotPasswordEmail(voterInfo.FullName, rawPassword)
+
+	if err := sendEmail(req.Email, subject, body); err != nil {
+		fmt.Printf("sendEmail error (ForgotPassword): %v\n", err)
+		// We still updated the DB, but couldn't send the email
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Password reset, but failed to send email. Please contact admin."})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(VoterResponse{
+		Status:  "success",
+		Message: "A new password has been sent to your email",
+	})
+}
+
+// ===== BulkResetVoterPasswords =====
+// POST /api/elections/{address}/voters/reset-passwords
+// Admin-triggered: for every voter registered in the election, generates a unique
+// random password, saves bcrypt hash to DB, and emails the plain password to the voter.
+func BulkResetVoterPasswords(w http.ResponseWriter, r *http.Request) {
+	withVoterCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	electionAddress := vars["address"]
+	if electionAddress == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "election address is required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// Fetch all voters registered in this election
+	cursor, err := voterCollection.Find(ctx, bson.M{"registrations.election_address": electionAddress})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Failed to fetch voters"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var voters []Voter
+	if err := cursor.All(ctx, &voters); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Failed to decode voters"})
+		return
+	}
+
+	if len(voters) == 0 {
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "success", Message: "No voters found in this election"})
+		return
+	}
+
+	successCount := 0
+	failCount := 0
+	var failedEmails []string
+
+	for _, v := range voters {
+		// Generate a unique password per voter
+		rawPassword, err := genPassword(12)
+		if err != nil {
+			failCount++
+			failedEmails = append(failedEmails, v.Email)
+			continue
+		}
+
+		// Use MinCost here for extreme bulk ops (1000+ voters) to prevent HTTP timeouts and massive CPU spikes
+		hashed, err := bcrypt.GenerateFromPassword([]byte(rawPassword), bcrypt.MinCost)
+		if err != nil {
+			failCount++
+			failedEmails = append(failedEmails, v.Email)
+			continue
+		}
+
+		// Update password in DB
+		updateCtx, updateCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		_, dbErr := voterCollection.UpdateOne(updateCtx, bson.M{"_id": v.ID}, bson.M{"$set": bson.M{"password": string(hashed)}})
+		updateCancel()
+		if dbErr != nil {
+			failCount++
+			failedEmails = append(failedEmails, v.Email)
+			continue
+		}
+
+		// Send email with the new password
+		subject := "Your New Password for SecureVote -- E-Voting System"
+		body := GenerateForgotPasswordEmail(v.FullName, rawPassword)
+		if emailErr := sendEmail(v.Email, subject, body); emailErr != nil {
+			fmt.Printf("BulkResetVoterPasswords: sendEmail error for %s: %v\n", v.Email, emailErr)
+			failCount++
+			failedEmails = append(failedEmails, v.Email)
+			continue
+		}
+
+		successCount++
+	}
+
+	msg := fmt.Sprintf("Passwords sent: %d succeeded, %d failed", successCount, failCount)
+	respData := map[string]interface{}{
+		"total":         len(voters),
+		"success_count": successCount,
+		"fail_count":    failCount,
+	}
+	if len(failedEmails) > 0 {
+		respData["failed_emails"] = failedEmails
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  "success",
+		"message": msg,
+		"data":    respData,
+	})
+}
+
+// ===== AdminResetVoterPassword =====
+// POST /api/voters/{voterId}/reset-password
+// Admin-triggered: generates a new password, saves hashed to DB, emails plain password to voter.
+func AdminResetVoterPassword(w http.ResponseWriter, r *http.Request) {
+	withVoterCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	voterIdStr := vars["voterId"]
+	if voterIdStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "voterId is required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Find voter by ID (ObjectID) or email
+	var voterInfo Voter
+	objID, err := primitive.ObjectIDFromHex(voterIdStr)
+	if err == nil {
+		err = voterCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&voterInfo)
+	} else {
+		// fallback: treat as email
+		err = voterCollection.FindOne(ctx, bson.M{"email": voterIdStr}).Decode(&voterInfo)
+	}
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Voter not found"})
+		return
+	}
+
+	// Generate a new random password
+	rawPassword, err := genPassword(12)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Failed to generate password"})
+		return
+	}
+	hashed, err := bcrypt.GenerateFromPassword([]byte(rawPassword), bcrypt.DefaultCost)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Failed to hash password"})
+		return
+	}
+
+	// Update in DB
+	filter := bson.M{"_id": voterInfo.ID}
+	_, err = voterCollection.UpdateOne(ctx, filter, bson.M{"$set": bson.M{"password": string(hashed)}})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Failed to update password in DB"})
+		return
+	}
+
+	// Email the new password
+	subject := "Your New Password for SecureVote -- E-Voting System"
+	body := GenerateForgotPasswordEmail(voterInfo.FullName, rawPassword)
+	if err := sendEmail(voterInfo.Email, subject, body); err != nil {
+		fmt.Printf("AdminResetVoterPassword: sendEmail error for %s: %v\n", voterInfo.Email, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Password reset but email failed. Check server logs."})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(VoterResponse{
+		Status:  "success",
+		Message: "New password generated and emailed to " + voterInfo.Email,
 	})
 }

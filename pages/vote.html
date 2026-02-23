@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vote - BlockVotes</title>
+  <title>Vote - SecureVote -- E-Voting System</title>
   <link rel="icon" type="image/png" href="/static/logo3.png">
   <link rel="stylesheet" href="/static/css/global.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
@@ -159,12 +159,18 @@
     <aside class="sidebar">
       <div style="display:flex; align-items:center; gap:10px; margin-bottom: 3rem;">
         <img src="/static/logo3.png" alt="logo" style="width:40px; height:40px;">
-        <h3 style="margin:0; font-size:1.2rem;">BlockVotes</h3>
+        <h3 style="margin:0; font-size:1.2rem;">SecureVote <br> E-Voting System</h3>
       </div>
+
+      <button onclick="window.location.href='voter_dashboard.html'" class="btn btn-outline"
+        style="width: 100%; margin-bottom: 2rem; border-color: rgba(255,255,255,0.2); color: var(--text-muted);">
+        &larr; Back to Dashboard
+      </button>
 
       <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem;">Logged in as:</div>
       <div id="voterEmailDisplay"
-        style="font-size: 0.95rem; font-weight: 600; color: #fff; margin-bottom: 2rem; word-break: break-all;">—</div>
+        style="font-size: 0.95rem; font-weight: 600; color: #fff; margin-bottom: 2rem; word-break: break-all;">&mdash;
+      </div>
 
       <button id="downloadIdBtn" class="btn btn-primary" style="margin-top: 1rem; width: 100%;">
         Download Voter ID (PDF)
@@ -198,18 +204,20 @@
         <div class="stats-container">
           <div class="stat-card">
             <div style="color: var(--text-muted); font-size: 0.9rem;">Registered Voters</div>
-            <div id="votersCount" style="font-size: 2rem; font-weight: 700; color: #fff; margin-top: 0.5rem;">—</div>
+            <div id="votersCount" style="font-size: 2rem; font-weight: 700; color: #fff; margin-top: 0.5rem;">&mdash;
+            </div>
           </div>
           <div class="stat-card">
             <div style="color: var(--text-muted); font-size: 0.9rem;">Candidates</div>
-            <div id="candidatesCount" style="font-size: 2rem; font-weight: 700; color: #fff; margin-top: 0.5rem;">—
+            <div id="candidatesCount" style="font-size: 2rem; font-weight: 700; color: #fff; margin-top: 0.5rem;">
+              &mdash;
             </div>
           </div>
           <div class="stat-card">
             <div style="color: var(--text-muted); font-size: 0.9rem;">Election Code (Address)</div>
             <div id="addressDisplay"
               style="font-size: 0.9rem; color: var(--primary-color); margin-top: 0.5rem; word-break: break-all; font-family: monospace;">
-              —</div>
+              &mdash;</div>
           </div>
         </div>
 
@@ -373,7 +381,7 @@
                     <div style="flex:1;">
                         <div style="font-weight:600; font-size:1.1rem; color:#fff;">${escapeHtml(c.name)}</div>
                          <div style="font-size:0.9rem; color:var(--text-muted);">${escapeHtml(c.description)}</div>
-                         ${(c.manifestoUrl || c.manifesto_url) ? `<div style="margin-top:4px;"><a href="${c.manifestoUrl || c.manifesto_url}" target="_blank" style="color:var(--accent-color); font-size:0.8rem; text-decoration:none;">📄 View Manifesto</a></div>` : ''}
+                         ${(c.manifestoUrl || c.manifesto_url) ? `<div style="margin-top:4px;"><a href="${c.manifestoUrl || c.manifesto_url}" target="_blank" style="color:var(--accent-color); font-size:0.8rem; text-decoration:none;">&#128196; View Manifesto</a></div>` : ''}
                     </div>
                     <div style="width: 20px; height: 20px; border: 2px solid var(--text-muted); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
                         <div class="dot" style="width: 10px; height: 10px; background: var(--accent-color); border-radius: 50%; opacity: 0; transition: opacity 0.2s;"></div>
@@ -471,7 +479,7 @@
           modal.classList.remove('active');
           // Disable voting button
           document.getElementById('castVoteBtn').disabled = true;
-          document.getElementById('castVoteBtn').textContent = 'Vote Cast ✔';
+          document.getElementById('castVoteBtn').innerHTML = 'Vote Cast &check;';
           document.getElementById('castVoteBtn').style.background = 'var(--text-muted)';
         } else {
           throw new Error(json?.message || 'Vote failed');

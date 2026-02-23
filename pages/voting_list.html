@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Voter Management - BlockVotes</title>
+  <title>Voter Management - SecureVote -- E-Voting System</title>
   <link rel="icon" type="image/png" href="/static/logo3.png">
   <link rel="stylesheet" href="/static/css/global.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
@@ -89,6 +89,24 @@
       color: #34d399;
     }
 
+    .btn-send-all {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      padding: 0.4rem 0.85rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-body);
+      transition: all 0.2s;
+    }
+
+    .btn-send-all:hover {
+      background: rgba(245, 158, 11, 0.3);
+      border-color: #fbbf24;
+    }
+
     /* Modal Styling */
     .modal-overlay {
       position: fixed;
@@ -120,6 +138,25 @@
       border: 1px solid var(--glass-border);
       box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
     }
+
+    .year-filter-btn {
+      padding: 0.35rem 0.9rem;
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-family: var(--font-body);
+      transition: all 0.2s;
+    }
+
+    .year-filter-btn.active,
+    .year-filter-btn:hover {
+      background: rgba(108, 92, 231, 0.25);
+      color: #fff;
+      border-color: #6c5ce7;
+    }
   </style>
 </head>
 
@@ -140,7 +177,7 @@
     <aside class="sidebar">
       <div style="text-align: center; margin-bottom: 3rem;">
         <img src="/static/logo3.png" alt="Logo" style="width: 50px; margin-bottom: 0.5rem;" />
-        <h3 style="margin:0;">BlockVotes</h3>
+        <h3 style="margin:0;">SecureVote <br> E-Voting System</h3>
       </div>
       <nav style="flex: 1;">
         <button id="dashboardBtn" class="nav-btn">Dashboard</button>
@@ -167,8 +204,12 @@
         <div>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
             <h3 style="margin:0; color: var(--text-muted);">Registered Voters</h3>
-            <button id="importVotersBtn" class="btn btn-outline" style="font-size:0.8rem; display:none;"
-              onclick="openImportModal()">+ Import Voters</button>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+              <button id="importVotersBtn" class="btn btn-outline" style="font-size:0.8rem; display:none;"
+                onclick="openImportModal()">+ Import Voters</button>
+              <button id="sendAllPasswordsBtn" class="btn-send-all" style="display:none;"
+                onclick="sendPasswordsToAll()">🔑 Send New Passwords to All</button>
+            </div>
           </div>
           <div id="voters-list">
             <!-- Populated via JS -->
@@ -181,6 +222,15 @@
             <h3 style="margin-bottom: 1rem;">Import Voters from Global Pool</h3>
             <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">Select voters to grant access to
               the current election.</p>
+
+            <!-- Year Filter Buttons -->
+            <div id="yearFilterBar" style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1rem;">
+              <button class="year-filter-btn active" data-year="all" onclick="filterImportByYear('all')">All</button>
+              <button class="year-filter-btn" data-year="1" onclick="filterImportByYear('1')">Year 1</button>
+              <button class="year-filter-btn" data-year="2" onclick="filterImportByYear('2')">Year 2</button>
+              <button class="year-filter-btn" data-year="3" onclick="filterImportByYear('3')">Year 3</button>
+              <button class="year-filter-btn" data-year="4" onclick="filterImportByYear('4')">Year 4</button>
+            </div>
 
             <div
               style="max-height: 400px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: 8px; padding: 0.5rem; margin-bottom: 1rem;">
@@ -212,32 +262,7 @@
         <div class="glass-card" style="height: fit-content;">
           <h3 style="margin-bottom: 1.5rem; color: var(--accent-color);">Register New Voter</h3>
           <form id="registerVoterForm">
-            <div style="margin-bottom: 1rem;">
-              <div style="display: flex; gap: 0.5rem;" class="email-otp-row">
-                <style>
-                  @media (max-width: 767px) {
-                    .email-otp-row {
-                      flex-direction: column !important;
-                      gap: 0.75rem !important;
-                    }
-
-                    .email-otp-row input {
-                      width: 100% !important;
-                    }
-
-                    .email-otp-row button {
-                      width: 100% !important;
-                    }
-                  }
-                </style>
-                <input id="register_voter_email" type="email" required placeholder="Voter Email (ID)" style="flex:1;" />
-                <button id="sendOtpBtn" type="button" class="btn btn-outline" style="font-size: 0.8rem;">Send
-                  OTP</button>
-              </div>
-            </div>
-            <div style="margin-bottom: 1rem;">
-              <input id="register_voter_otp" type="text" placeholder="Enter OTP from Email" />
-            </div>
+            <!-- OTP field completely bypassed/removed per requirements -->
             <div style="margin-bottom: 1rem;">
               <input id="register_voter_name" type="text" required placeholder="Full Name" />
             </div>
@@ -249,26 +274,45 @@
               <input id="register_voter_mobile" type="tel" placeholder="Mobile Number (+91...)" />
             </div>
             <div style="margin-bottom: 1rem;">
-              <textarea id="register_voter_address" rows="2" placeholder="Residential Address"></textarea>
+              <input id="register_voter_roll_no" type="text" placeholder="AKTU Roll No" />
             </div>
             <div style="margin-bottom: 1rem;">
-              <input id="register_voter_father" type="text" placeholder="Father's Name" />
+              <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:0.2rem;">Gender
+                Choice</label>
+              <select id="register_voter_gender"
+                style="width:100%; padding:0.5rem; background:#1e1e2f; color:#fff; border:1px solid #444; border-radius:4px;">
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
             <div style="margin-bottom: 1rem;">
-              <input id="register_voter_mother" type="text" placeholder="Mother's Name" />
+              <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:0.2rem;">Which Year
+                Student</label>
+              <select id="register_voter_year"
+                style="width:100%; padding:0.5rem; background:#1e1e2f; color:#fff; border:1px solid #444; border-radius:4px;">
+                <option value="">Select Year</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
             </div>
-            <div style="margin-bottom: 1.5rem;">
-              <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:0.5rem;">Voter Photo
-                (ID)</label>
-              <input id="register_voter_photo" type="file" accept="image/*" style="font-size:0.85rem;" />
-            </div>
+            <input id="register_voter_email" type="email" required placeholder="Voter Email (ID)"
+              style="margin-bottom: 1rem;" />
 
-            <button id="registerVoterBtn" type="submit" class="btn btn-primary" style="width: 100%;">Verify &
-              Register</button>
+            <label style="font-size:0.8rem; color:var(--text-muted); display:block; margin-bottom:0.5rem;">Voter Photo
+              (ID)</label>
+            <input id="register_voter_photo" type="file" accept="image/*"
+              style="font-size:0.85rem; margin-bottom: 2rem;" />
+
+            <button id="registerVoterBtn" type="submit" class="btn btn-primary" style="width: 100%;">Register</button>
           </form>
         </div>
       </div>
-    </main>
+  </div>
+  </main>
   </div>
 
   <!-- Edit/Details Modal -->
@@ -353,6 +397,7 @@
                     ${status === 'Verified' ? `<button class="action-btn" style="background:#ef444420; color:#f87171;" onclick="verifyVoter('${id}', 'Rejected')">Reject</button>` : ''}
                     <button class="action-btn btn-details" onclick="openDetails('${id}')">Details</button>
                     <button class="action-btn btn-edit" onclick="openEdit('${id}')">Edit</button>
+                    <button class="action-btn" style="background:rgba(245,158,11,0.15); color:#fbbf24;" onclick="sendPassword('${id}')">Send Pwd</button>
                     <button class="action-btn btn-delete" onclick="deleteVoter('${id}')">Delete</button>
                 </div>
             `;
@@ -392,14 +437,38 @@
       modalTitle.textContent = "Edit Voter";
       modalSaveBtn.style.display = 'block';
 
+      // Safe accessor helpers
+      const val = (k) => escapeHtml(v[k] || '');
+
       modalBody.innerHTML = `
             <div style="display: grid; gap: 1rem;">
-                <input id="edit_name" value="${escapeHtml(v.full_name || '')}" placeholder="Full Name" />
-                <input id="edit_email" value="${escapeHtml(v.email || '')}" placeholder="Email" />
-                <input id="edit_dob" type="date" value="${escapeHtml(v.dob || '')}" placeholder="DOB" />
-                <input id="edit_mobile" value="${escapeHtml(v.mobile || '')}" placeholder="Mobile" />
-                <textarea id="edit_address" rows="2" placeholder="Address">${escapeHtml(v.address || '')}</textarea>
-                <input id="edit_password" type="password" placeholder="New Password (leave blank to keep)" />
+                <input id="edit_name" value="${val('full_name')}" placeholder="Full Name" />
+                <input id="edit_email" value="${val('email')}" placeholder="Email" />
+                
+                <!-- DOB handling -->
+                <input id="edit_dob" type="date" value="${val('dob') ? new Date(v.dob).toISOString().split('T')[0] : ''}" placeholder="DOB" />
+                
+                <input id="edit_mobile" value="${val('mobile')}" placeholder="Mobile" />
+                
+                <!-- New Fields -->
+                <input id="edit_roll_no" value="${val('roll_no')}" placeholder="AKTU Roll No" />
+                
+                <select id="edit_gender" style="padding:0.5rem; background:#1e1e2f; color:#fff; border:1px solid #444; border-radius:4px;">
+                    <option value="">Select Gender</option>
+                    <option value="Male" ${v.gender === 'Male' ? 'selected' : ''}>Male</option>
+                    <option value="Female" ${v.gender === 'Female' ? 'selected' : ''}>Female</option>
+                    <option value="Other" ${v.gender === 'Other' ? 'selected' : ''}>Other</option>
+                </select>
+
+                <select id="edit_year" style="padding:0.5rem; background:#1e1e2f; color:#fff; border:1px solid #444; border-radius:4px;">
+                    <option value="">Select Year</option>
+                    <option value="1" ${v.year === '1' ? 'selected' : ''}>1</option>
+                    <option value="2" ${v.year === '2' ? 'selected' : ''}>2</option>
+                    <option value="3" ${v.year === '3' ? 'selected' : ''}>3</option>
+                    <option value="4" ${v.year === '4' ? 'selected' : ''}>4</option>
+                </select>
+                
+                
                 <div style="border-top:1px solid #333; padding-top:0.5rem;">
                    <label style="font-size:0.8rem; color:var(--text-muted);">Update Photo</label>
                    <input id="edit_photo" type="file" accept="image/*" style="font-size:0.85rem;" />
@@ -423,7 +492,7 @@
         try {
           const fd = new FormData();
           fd.append('file', photoInput.files[0]);
-          const upResp = await fetch('/api/upload/cloudinary', { method: 'POST', body: fd });
+          const upResp = await fetch('/api/upload/s3', { method: 'POST', body: fd });
           const upJson = await UI.safeJson(upResp);
           if (!upResp.ok) throw new Error(upJson.message || 'Upload failed');
           photoUrl = upJson.secure_url || upJson.url || "";
@@ -441,8 +510,9 @@
         email: document.getElementById('edit_email').value,
         dob: document.getElementById('edit_dob').value,
         mobile: document.getElementById('edit_mobile').value,
-        address: document.getElementById('edit_address').value,
-        password: document.getElementById('edit_password').value,
+        roll_no: document.getElementById('edit_roll_no').value, // New
+        gender: document.getElementById('edit_gender').value,   // New
+        year: document.getElementById('edit_year').value,       // New
         photo_url: photoUrl
       };
 
@@ -482,13 +552,51 @@
       finally { UI.hideLoader(); }
     };
 
+    window.sendPasswordsToAll = async () => {
+      const address = getElectionAddress();
+      if (!address) return UI.toast('No election selected', 'warning');
+      if (!confirm(`Generate and send a unique NEW password to every voter in this election?\n\nEach voter will receive a different password by email.`)) return;
+      UI.showLoader('Sending passwords to all voters...');
+      try {
+        const resp = await fetch(`/api/elections/${encodeURIComponent(address)}/voters/reset-passwords`, { method: 'POST' });
+        const json = await UI.safeJson(resp);
+        if (resp.ok) {
+          const d = json?.data || {};
+          const msg = json?.message || 'Done';
+          const detail = d.success_count !== undefined
+            ? `\u2705 ${d.success_count} sent, \u274c ${d.fail_count} failed (total ${d.total})`
+            : msg;
+          UI.toast(detail, d.fail_count > 0 ? 'warning' : 'success');
+        } else {
+          UI.toast(json?.message || 'Failed to send passwords', 'error');
+        }
+      } catch (e) { console.error(e); UI.toast('Error sending passwords', 'error'); }
+      finally { UI.hideLoader(); }
+    };
+
+    window.sendPassword = async (id) => {
+      if (!confirm("Generate and send a new password to this voter's email?")) return;
+      UI.showLoader('Sending password...');
+      try {
+        const resp = await fetch(`/api/voters/${encodeURIComponent(id)}/reset-password`, { method: 'POST' });
+        const json = await UI.safeJson(resp);
+        if (resp.ok) {
+          UI.toast(json?.message || 'Password sent!', 'success');
+        } else {
+          UI.toast(json?.message || 'Failed to send password', 'error');
+        }
+      } catch (e) { console.error(e); UI.toast('Error sending password', 'error'); }
+      finally { UI.hideLoader(); }
+    };
+
     window.verifyVoter = async (id, status) => {
       UI.showLoader('Updating Status...');
       try {
+        const addr = getElectionAddress();
         const resp = await fetch(`/api/voters/${encodeURIComponent(id)}/approve`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status })
+          body: JSON.stringify({ status, election_address: addr })
         });
         if (resp.ok) {
           UI.toast('Status Updated', 'success');
@@ -500,25 +608,7 @@
       finally { UI.hideLoader(); }
     };
 
-    // --- Register Logic ---
-    document.getElementById('sendOtpBtn').onclick = async () => {
-      const email = document.getElementById('register_voter_email').value;
-      const addr = getElectionAddress();
-      if (!email) return UI.toast('Enter email first', 'warning');
-
-      UI.showLoader('Sending OTP...');
-      try {
-        const resp = await fetch('/api/voters/send-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, election_address: addr })
-        });
-        const json = await safeJson(resp);
-        if (resp.ok) UI.toast(json?.message || 'OTP Sent', 'success');
-        else UI.toast(json?.message || 'Failed to send OTP', 'error');
-      } catch (e) { UI.toast('Error sending OTP', 'error'); }
-      finally { UI.hideLoader(); }
-    };
+    // --- Send OTP logic removed since it is bypassed ---
 
     document.getElementById('registerVoterForm').onsubmit = async (e) => {
       e.preventDefault();
@@ -530,22 +620,19 @@
 
       const payload = {
         email: document.getElementById('register_voter_email').value,
-        otp: document.getElementById('register_voter_otp').value,
         full_name: document.getElementById('register_voter_name').value,
         dob: document.getElementById('register_voter_dob').value,
         mobile: document.getElementById('register_voter_mobile').value,
-        address: document.getElementById('register_voter_address').value,
-        father_name: document.getElementById('register_voter_father').value,
-        mother_name: document.getElementById('register_voter_mother').value,
+        roll_no: document.getElementById('register_voter_roll_no').value, // Updated
+        gender: document.getElementById('register_voter_gender').value,   // Updated
+        year: document.getElementById('register_voter_year').value,       // Updated
         election_address: addr
       };
-
-      if (!payload.otp) return UI.toast('OTP is required', 'warning');
 
       // Age check
       const dobDate = new Date(payload.dob);
       const age = new Date(Date.now() - dobDate.getTime()).getUTCFullYear() - 1970;
-      if (age < 18) return UI.toast('Voter must be 18+', 'error');
+      if (age < 16) return UI.toast('Voter must be 16+', 'error');
 
       // Image Upload
       const photoInput = document.getElementById('register_voter_photo');
@@ -556,7 +643,7 @@
         try {
           const fd = new FormData();
           fd.append('file', photoInput.files[0]);
-          const upResp = await fetch('/api/upload/cloudinary', { method: 'POST', body: fd });
+          const upResp = await fetch('/api/upload/s3', { method: 'POST', body: fd });
           const upJson = await UI.safeJson(upResp);
           if (!upResp.ok) throw new Error(upJson.message || 'Upload failed');
           photoUrl = upJson.secure_url || upJson.url || "";
@@ -569,7 +656,7 @@
         }
       }
 
-      UI.showLoader('Verifying & Registering...');
+      UI.showLoader('Registering Voter...');
       try {
         const registrationPayload = { ...payload, photo_url: photoUrl };
         const resp = await fetch('/api/voters/verify-otp-register', {
@@ -601,15 +688,30 @@
     document.getElementById('createBtn').addEventListener('click', () => window.location.href = 'create_election.html');
     document.getElementById('logoutBtn').onclick = () => {
       Cookies.remove('address'); Cookies.remove('company_email');
-      window.location.href = 'homepage.html';
+      window.location.href = 'company_login.html';
     };
 
     // --- Bulk Import Logic ---
     let globalVotersCache = [];
+    let activeYearFilter = 'all';
+
+    function filterImportByYear(year) {
+      activeYearFilter = year;
+      document.querySelectorAll('.year-filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.year === year);
+      });
+      renderImportList();
+    }
 
     async function openImportModal() {
       const currentAddr = getElectionAddress();
       if (!currentAddr) return; // Should not happen if button is hidden
+
+      // Reset year filter to 'all' each time modal opens
+      activeYearFilter = 'all';
+      document.querySelectorAll('.year-filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.year === 'all');
+      });
 
       UI.showLoader('Loading Global Voters...');
       try {
@@ -642,12 +744,18 @@
     function renderImportList() {
       const tbody = document.getElementById('importVotersTableBody');
       tbody.innerHTML = '';
-      if (globalVotersCache.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" style="padding:1rem; text-align:center; color:var(--text-muted);">No eligible voters found to import.</td></tr>';
+
+      // Apply year filter
+      const filtered = activeYearFilter === 'all'
+        ? globalVotersCache
+        : globalVotersCache.filter(v => String(v.year) === String(activeYearFilter));
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="padding:1rem; text-align:center; color:var(--text-muted);">No eligible voters found' + (activeYearFilter !== 'all' ? ' for Year ' + activeYearFilter : '') + '.</td></tr>';
         return;
       }
 
-      globalVotersCache.forEach(v => {
+      filtered.forEach(v => {
         const id = v.id || v._id;
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -698,6 +806,7 @@
     // Check key for import btn visibility
     if (getElectionAddress()) {
       document.getElementById('importVotersBtn').style.display = 'block';
+      document.getElementById('sendAllPasswordsBtn').style.display = 'block';
     }
 
     loadVoters();

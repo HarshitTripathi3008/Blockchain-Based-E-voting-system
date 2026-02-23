@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Election Commission Login - BlockVotes</title>
+  <title>Company Login - SecureVote -- E-Voting System</title>
   <link rel="stylesheet" href="/static/css/global.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
     rel="stylesheet">
@@ -28,17 +28,15 @@
 <body>
   <div class="glass-card login-card fade-in">
     <img src="/static/logo3.png" alt="Logo" style="width: 80px; margin-bottom: 1.5rem;" />
-    <h2 style="margin-bottom: 2rem; color: var(--primary-color);">Election Commission</h2>
+    <h2 style="margin-bottom: 2rem; color: var(--primary-color);">Election Commission Login</h2>
 
     <form id="companyLoginForm" novalidate>
-      <div class="form-group">
-        <i class="fas fa-envelope"></i>
-        <input type="email" id="companyEmail" placeholder="Email Address" required value="harshtripathi9559@gmail.com">
+      <div style="margin-bottom: 1.5rem;">
+        <input type="email" id="companyEmail" placeholder="Email Address" required>
       </div>
 
-      <div class="form-group">
-        <i class="fas fa-lock"></i>
-        <input type="password" id="companyPassword" placeholder="Password" required value="Admin@12345">
+      <div style="margin-bottom: 2rem;">
+        <input type="password" id="companyPassword" placeholder="Password" required>
       </div>
       <button type="submit" id="companyLoginBtn" class="btn btn-primary" style="width: 100%;">Secure Login</button>
     </form>
@@ -99,13 +97,8 @@
             return;
           }
 
-          const electionData = await checkElectionOnBlockchain(email);
-          if (electionData && electionData.address) {
-            document.cookie = "address=" + encodeURIComponent(electionData.address) + "; path=/";
-            window.location.href = `company_dashboard.html?address=${encodeURIComponent(electionData.address)}`;
-          } else {
-            window.location.href = 'create_election.html';
-          }
+          // Redirect to dashboard regardless of election status
+          window.location.href = 'company_dashboard.html';
           return;
         }
 
@@ -149,21 +142,6 @@
     });
 
 
-    async function checkElectionOnBlockchain(email) {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          const hasElection = Math.random() > 0.5;
-          if (hasElection) {
-            resolve({
-              address: '0x' + Math.random().toString(16).slice(2, 42),
-              status: 'Election exists'
-            });
-          } else {
-            resolve({ status: 'Create an election.' });
-          }
-        }, 700);
-      });
-    }
   </script>
 </body>
 

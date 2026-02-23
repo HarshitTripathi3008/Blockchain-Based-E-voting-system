@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Election Commission Login - BlockVotes</title>
+  <title>Election Commission Login - SecureVote -- E-Voting System</title>
   <link rel="stylesheet" href="/static/css/global.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
     rel="stylesheet">
@@ -66,8 +66,12 @@
         return;
       }
 
-      if (!addr.startsWith('0x') || addr.length !== 42) {
-        showError('Invalid Ethereum Address format.');
+      // Relaxed validation to allow Email or Address
+      const isAddress = addr.startsWith('0x') && addr.length === 42;
+      const isEmail = addr.includes('@');
+
+      if (!isAddress && !isEmail) {
+        showError('Please enter a valid Election Address or Company Email.');
         return;
       }
 

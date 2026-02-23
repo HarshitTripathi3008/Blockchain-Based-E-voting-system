@@ -1101,15 +1101,18 @@ html {
         font-size: 0.9rem;
     }
 }
+
 /* ============================================ */
 /* CRITICAL MOBILE LAYOUT FIXES FOR DASHBOARDS */
 /* ============================================ */
 
 @media (max-width: 767px) {
+
     /* Fix dashboard content visibility */
     .main-content {
         padding: 1rem;
-        padding-top: 4.5rem; /* Space for hamburger */
+        padding-top: 4.5rem;
+        /* Space for hamburger */
         overflow-x: hidden;
         overflow-y: auto;
         width: 100%;
@@ -1167,7 +1170,8 @@ html {
         width: 100% !important;
         max-width: 100% !important;
         margin-top: 1rem;
-        order: 2; /* Ensure form comes after list */
+        order: 2;
+        /* Ensure form comes after list */
     }
 
     /* Registered list should be full width */
@@ -1176,7 +1180,8 @@ html {
     .voters-list {
         width: 100% !important;
         max-width: 100% !important;
-        order: 1; /* List comes first */
+        order: 1;
+        /* List comes first */
     }
 
     /* Fix any two-column layouts to single column */
@@ -1272,6 +1277,7 @@ html {
 
 /* Specific fixes for candidate/voter registration pages */
 @media (max-width: 767px) {
+
     /* Candidate list page */
     #candidateListView,
     #candidateManagement {

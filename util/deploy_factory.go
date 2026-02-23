@@ -1,4 +1,4 @@
-package util
+﻿package util
 
 import (
 	"context"
@@ -8,13 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/core/types"
-	"math/big"
 )
 
 // Deploy deploys the contract and returns the deployed address and tx hash.
@@ -77,14 +78,14 @@ func Deploy(ctx context.Context, rpc string, abiPath string, binPath string, pri
 
 	// Deploy contract
 	// Use provided ctx for waiting as well
-	fmt.Println("🚀 Deploying contract...")
+	fmt.Println("[START] Deploying contract...")
 	address, tx, _, err := bind.DeployContract(auth, parsedABI, bin, client)
 	if err != nil {
 		return common.Address{}, nil, fmt.Errorf("failed to deploy contract: %w", err)
 	}
 
-	fmt.Printf("📦 Deployment tx: %s\n", tx.Hash().Hex())
-	fmt.Println("⏳ Waiting for deployment to be mined...")
+	fmt.Printf("[TX] Deployment tx: %s\n", tx.Hash().Hex())
+	fmt.Println("[WAIT] Waiting for deployment to be mined...")
 
 	waitCtx, waitCancel := context.WithTimeout(ctx, 60*time.Second) // arbitrary wait timeout
 	defer waitCancel()
@@ -95,7 +96,7 @@ func Deploy(ctx context.Context, rpc string, abiPath string, binPath string, pri
 		return common.Address{}, tx, fmt.Errorf("failed waiting for deployment: %w", err)
 	}
 
-	fmt.Println("✅ Deployed at address:", address.Hex())
+	fmt.Println("[OK] Deployed at address:", address.Hex())
 
 	// Update or append FACTORY_CONTRACT_ADDRESS in .env (best-effort; if it fails, return the error)
 	envPath := ".env"
@@ -123,7 +124,7 @@ func Deploy(ctx context.Context, rpc string, abiPath string, binPath string, pri
 	if err := os.WriteFile(envPath, []byte(strings.Join(lines, "\n")), 0644); err != nil {
 		return address, tx, fmt.Errorf("failed to write .env: %w", err)
 	}
-	fmt.Println("📝 .env updated with FACTORY_CONTRACT_ADDRESS =", address.Hex())
+	fmt.Println("[INFO] .env updated with FACTORY_CONTRACT_ADDRESS =", address.Hex())
 
 	// Verify runtime code present at address
 	codeCtx, codeCancel := context.WithTimeout(ctx, 10*time.Second)
@@ -133,9 +134,9 @@ func Deploy(ctx context.Context, rpc string, abiPath string, binPath string, pri
 		return address, tx, fmt.Errorf("failed to fetch code at deployed address: %w", err)
 	}
 	if len(code) == 0 {
-		fmt.Println("⚠️ Warning: runtime code at address is empty. Contract creation may have failed (invalid opcode, revert, etc.).")
+		fmt.Println("[WARN] Warning: runtime code at address is empty. Contract creation may have failed (invalid opcode, revert, etc.).")
 	} else {
-		fmt.Println("✅ Runtime code stored at deployed address (bytes):", len(code))
+		fmt.Println("[OK] Runtime code stored at deployed address (bytes):", len(code))
 	}
 
 	return address, tx, nil

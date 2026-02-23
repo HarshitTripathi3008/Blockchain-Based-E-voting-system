@@ -1,4 +1,4 @@
-package controllers
+﻿package controllers
 
 import (
 	"fmt"
@@ -41,13 +41,13 @@ func BaseEmailLayout(subject, content string) string {
         <br>
         <div class="container">
             <div class="header">
-                <h1>BlockVotes</h1>
+                <h1>SecureVote</h1>
             </div>
             <div class="content">
                 %s
             </div>
             <div class="footer">
-                <p>&copy; 2026 BlockVotes Secure Elections.<br>
+                <p>&copy; 2026 SecureVote Secure Elections.<br>
                 This is an automated message. Please do not reply directly.</p>
             </div>
         </div>
@@ -63,7 +63,7 @@ func GenerateOTPEmail(otp string) string {
 	content := fmt.Sprintf(`
 		<h2 style="color: #2d3436; margin-top: 0;">Verify Your Identity</h2>
 		<p>Hello,</p>
-		<p>You have requested to verify your identity for the BlockVotes platform. Please use the One-Time Password (OTP) below to complete your verification.</p>
+		<p>You have requested to verify your identity for the SecureVote platform. Please use the One-Time Password (OTP) below to complete your verification.</p>
 		
 		<div style="text-align: center; margin: 30px 0;">
 			<div style="display: inline-block; background: #dfe6e9; padding: 15px 30px; font-size: 32px; font-weight: bold; color: #2d3436; letter-spacing: 5px; border-radius: 8px; border: 1px dashed #b2bec3;">
@@ -96,16 +96,37 @@ func GenerateWelcomeEmail(name, email, password, electionName string) string {
 		<p>For your security, we strongly recommend that you change your password immediately after your first login.</p>
 		
 		<div style="text-align: center;">
-			<a href="#" class="btn">Login to Vote</a>
+			<a href="https://SecureVote.in/voter_login.html" class="btn">Login to Vote &rarr;</a>
 		</div>
 	`, name, electionName, email, password)
 
-	return BaseEmailLayout("Welcome to BlockVotes", content)
+	return BaseEmailLayout("Welcome to SecureVote", content)
 }
 
-// GenerateResultsEmailHTML creates a rich HTML email with results and audit logs
-func GenerateResultsEmailHTML(electionName, winnerName string, candidates []map[string]interface{}, logs []AuditLog) string {
-	// 1. Build Candidates Table
+// GenerateForgotPasswordEmail creates an email for forgotten passwords
+func GenerateForgotPasswordEmail(name, newPassword string) string {
+	content := fmt.Sprintf(`
+		<h2 style="color: #2d3436; margin-top: 0;">Password Reset</h2>
+		<p>Hello %s,</p>
+		<p>We received a request to retrieve the password for your SecureVote account. For security reasons, we have generated a new temporary password for you.</p>
+
+		<div class="info-box" style="background: #e3f2fd; border-left-color: #2196f3; color: #0d47a1;">
+			<p style="margin: 5px 0;"><strong>New Password:</strong> %s</p>
+		</div>
+
+		<p>Please log in with this new password and change it from your dashboard immediately.</p>
+		
+		<div style="text-align: center;">
+			<a href="https://SecureVote.in/voter_login.html" class="btn">Login Here &rarr;</a>
+		</div>
+	`, name, newPassword)
+
+	return BaseEmailLayout("Your New Password", content)
+}
+
+// GenerateResultsEmailHTML creates a rich HTML email with just the election results
+func GenerateResultsEmailHTML(electionName, winnerName string, candidates []map[string]interface{}) string {
+	// Build Candidates Table
 	var candRows string
 	winnerVotes := 0
 
@@ -116,8 +137,12 @@ func GenerateResultsEmailHTML(electionName, winnerName string, candidates []map[
 			switch val := v.(type) {
 			case int:
 				votes = val
-			case int32, int64, float64:
-				votes = int(val.(int64)) // simplification, assumes safe cast for display
+			case int32:
+				votes = int(val)
+			case int64:
+				votes = int(val)
+			case float64:
+				votes = int(val)
 			}
 		}
 
@@ -132,24 +157,6 @@ func GenerateResultsEmailHTML(electionName, winnerName string, candidates []map[
 			</tr>
 		`, name, votes)
 		candRows += row
-	}
-
-	// 2. Build Audit Log Table
-	var logRows string
-	if len(logs) == 0 {
-		logRows = `<tr><td colspan="3" style="color:#888; text-align:center;">No activity recorded.</td></tr>`
-	} else {
-		for _, l := range logs {
-			timeStr := l.Timestamp.Format("2006-01-02 15:04:05")
-			row := fmt.Sprintf(`
-				<tr>
-					<td style="color: #666; width: 140px;">%s</td>
-					<td><strong>%s</strong></td>
-					<td style="color: #555;">%s</td>
-				</tr>
-			`, timeStr, l.Action, l.Details)
-			logRows += row
-		}
 	}
 
 	content := fmt.Sprintf(`
@@ -167,14 +174,7 @@ func GenerateResultsEmailHTML(electionName, winnerName string, candidates []map[
 			<thead><tr><th>Candidate</th><th>Votes</th></tr></thead>
 			<tbody>%s</tbody>
 		</table>
-
-		<h3 style="border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 40px;">Audit Log</h3>
-		<p style="font-size: 13px; color: #999;">Immutable record of election events.</p>
-		<table>
-			<thead><tr><th>Time (UTC)</th><th>Action</th><th>Details</th></tr></thead>
-			<tbody>%s</tbody>
-		</table>
-	`, electionName, winnerName, winnerVotes, candRows, logRows)
+	`, electionName, winnerName, winnerVotes, candRows)
 
 	return BaseEmailLayout(fmt.Sprintf("Results: %s", electionName), content)
 }

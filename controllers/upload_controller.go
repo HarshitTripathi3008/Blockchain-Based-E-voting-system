@@ -1,4 +1,4 @@
-package controllers
+﻿package controllers
 
 import (
 	"encoding/json"
@@ -61,16 +61,16 @@ func UnifiedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	var url string
 	var uploadErr error
 
-	// Logic: Images/Videos/Audio -> Cloudinary, Else -> Google Drive
+	// Logic: Images/Videos/Audio -> AWS S3, Else -> Google Drive
 	isMedia := false
 	if len(mimeType) >= 6 && (mimeType[:6] == "image/" || mimeType[:6] == "video/" || mimeType[:6] == "audio/") {
 		isMedia = true
 	}
 
 	if isMedia {
-		// Delegate to Cloudinary
-		log.Println("Delegating to Cloudinary...")
-		url, uploadErr = util.UploadToCloudinary(file, header.Filename)
+		// Delegate to S3
+		log.Println("Delegating to AWS S3...")
+		url, uploadErr = util.UploadToS3(file, header.Filename)
 	} else {
 		// Delegate to Google Drive
 		log.Println("Delegating to Google Drive...")

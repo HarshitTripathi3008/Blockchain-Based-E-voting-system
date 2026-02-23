@@ -1,4 +1,4 @@
-package controllers
+﻿package controllers
 
 import (
 	"bytes"
@@ -30,13 +30,13 @@ var auditCollection *mongo.Collection
 // InitAuditCollection initializes the audit_logs collection
 func InitAuditCollection(client *mongo.Client, dbName string) {
 	auditCollection = client.Database(dbName).Collection("audit_logs")
-	fmt.Println("✅ Initialized audit_logs collection")
+	fmt.Println("[OK] Initialized audit_logs collection")
 }
 
 // LogAction records an event to the database
 func LogAction(electionAddr, action, actor, details string) {
 	if auditCollection == nil {
-		log.Println("⚠️ Audit collection not initialized, skipping log:", action)
+		log.Println("[WARN] Audit collection not initialized, skipping log:", action)
 		return
 	}
 
@@ -53,9 +53,9 @@ func LogAction(electionAddr, action, actor, details string) {
 
 	_, err := auditCollection.InsertOne(ctx, entry)
 	if err != nil {
-		log.Printf("❌ Failed to log action %s: %v", action, err)
+		log.Printf("[ERROR] Failed to log action %s: %v", action, err)
 	} else {
-		log.Printf("📝 Audit Log: [%s] %s by %s", action, details, actor)
+		log.Printf("[AUDIT] [%s] %s by %s", action, details, actor)
 	}
 }
 
@@ -90,37 +90,33 @@ func GenerateAuditLogPDF(logs []AuditLog, electionName string) ([]byte, error) {
 	pdf.Cell(0, 10, "Election Audit Report: "+electionName)
 	pdf.Ln(12)
 
+	// Define IST (UTC+5:30)
+	ist := time.FixedZone("IST", 5*3600+30*60)
+
 	pdf.SetFont("Arial", "", 10)
-	pdf.Cell(0, 10, "Generated at: "+time.Now().Format(time.RFC1123))
+	pdf.Cell(0, 10, "Generated at: "+time.Now().In(ist).Format(time.RFC1123))
 	pdf.Ln(10)
 
 	// Table Header
 	pdf.SetFont("Arial", "B", 10)
 	pdf.SetFillColor(240, 240, 240)
-	pdf.CellFormat(40, 7, "Time", "1", 0, "", true, 0, "")
-	pdf.CellFormat(50, 7, "Action", "1", 0, "", true, 0, "")
-	pdf.CellFormat(50, 7, "Actor", "1", 0, "", true, 0, "")
-	pdf.CellFormat(50, 7, "Details", "1", 0, "", true, 0, "")
+	pdf.CellFormat(50, 7, "Time", "1", 0, "", true, 0, "")
+	pdf.CellFormat(70, 7, "Action", "1", 0, "", true, 0, "")
+	pdf.CellFormat(70, 7, "Actor", "1", 0, "", true, 0, "")
 	pdf.Ln(-1)
 
 	// Table Body
 	pdf.SetFont("Arial", "", 9)
 	for _, l := range logs {
-		pdf.CellFormat(40, 6, l.Timestamp.Format("15:04:05 02-Jan"), "1", 0, "", false, 0, "")
-		pdf.CellFormat(50, 6, l.Action, "1", 0, "", false, 0, "")
+		pdf.CellFormat(50, 6, l.Timestamp.In(ist).Format("15:04:05 02-Jan"), "1", 0, "", false, 0, "")
+		pdf.CellFormat(70, 6, l.Action, "1", 0, "", false, 0, "")
 
 		// Truncate actor if too long
 		actor := l.Actor
-		if len(actor) > 25 {
-			actor = actor[:22] + "..."
+		if len(actor) > 35 { // increased limit due to wider column
+			actor = actor[:32] + "..."
 		}
-		pdf.CellFormat(50, 6, actor, "1", 0, "", false, 0, "")
-
-		details := l.Details
-		if len(details) > 25 {
-			details = details[:22] + "..."
-		}
-		pdf.CellFormat(50, 6, details, "1", 0, "", false, 0, "")
+		pdf.CellFormat(70, 6, actor, "1", 0, "", false, 0, "")
 		pdf.Ln(-1)
 	}
 

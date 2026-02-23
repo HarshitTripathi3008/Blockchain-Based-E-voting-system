@@ -1,11 +1,10 @@
-package main
+﻿package main
 
 import (
 	"context"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,9 +18,9 @@ import (
 
 func main() {
 	// Load .env
-	if err := godotenv.Load("../.env"); err != nil {
+	if err := godotenv.Overload("../.env"); err != nil {
 		log.Println("Note: No .env file found in parent dir, checking current...")
-		if err := godotenv.Load(".env"); err != nil {
+		if err := godotenv.Overload(".env"); err != nil {
 			log.Println("Note: No .env file found, relying on system env")
 		}
 	}
@@ -49,27 +48,24 @@ func main() {
 	otpColl := db.Collection("otps")
 	auditColl := db.Collection("audit_logs")
 
-	// 1. Delete Cloudinary Images
-	fmt.Println("🔍 Fetching candidates to clear images...")
+	// 1. Delete S3 Images
+	fmt.Println("[SEARCH] Fetching candidates to clear images from S3...")
 	cursor, err := candColl.Find(ctx, bson.M{})
 	if err == nil {
 		defer cursor.Close(ctx)
 		var candidates []bson.M
 		if err := cursor.All(ctx, &candidates); err == nil {
 			for _, c := range candidates {
-				if imgHash, ok := c["imageHash"].(string); ok && imgHash != "" {
-					// Extract public ID logic
-					// Expected URL: .../upload/v123/voting_system/filename.png
-					// We need: voting_system/filename (no ext)
+				if imgUrl, ok := c["imageHash"].(string); ok && imgUrl != "" {
+					// Extract S3 key logic
+					// Expected URL: https://bucket.s3.region.amazonaws.com/uploads/timestamp_filename
+					// Key: uploads/timestamp_filename
 
-					// Simple hack: find "voting_system" and take rest
-					if idx := strings.Index(imgHash, "voting_system"); idx != -1 {
-						part := imgHash[idx:] // voting_system/filename.png
-						ext := filepath.Ext(part)
-						publicID := strings.TrimSuffix(part, ext)
+					if idx := strings.Index(imgUrl, "/uploads/"); idx != -1 {
+						objectKey := imgUrl[idx+1:] // uploads/timestamp_filename
 
-						fmt.Printf("🗑️ Deleting image: %s ... ", publicID)
-						if err := util.DeleteFromCloudinary(publicID); err != nil {
+						fmt.Printf("[DELETE] Deleting S3 object: %s ... ", objectKey)
+						if err := util.DeleteFromS3(objectKey); err != nil {
 							fmt.Printf("Failed: %v\n", err)
 						} else {
 							fmt.Printf("Done\n")
@@ -85,7 +81,7 @@ func main() {
 	if err != nil {
 		log.Printf("Failed to delete candidates: %v", err)
 	} else {
-		fmt.Printf("✅ Deleted %d candidates.\n", res.DeletedCount)
+		fmt.Printf("[OK] Deleted %d candidates.\n", res.DeletedCount)
 	}
 
 	// 3. Delete OTPs
@@ -93,7 +89,7 @@ func main() {
 	if err != nil {
 		log.Printf("Failed to delete OTPs: %v", err)
 	} else {
-		fmt.Printf("✅ Deleted %d OTPs.\n", resOtp.DeletedCount)
+		fmt.Printf("[OK] Deleted %d OTPs.\n", resOtp.DeletedCount)
 	}
 
 	// 4. Delete Audit Logs
@@ -101,7 +97,7 @@ func main() {
 	if err != nil {
 		log.Printf("Failed to delete Audit Logs: %v", err)
 	} else {
-		fmt.Printf("✅ Deleted %d Audit Log entries.\n", resAudit.DeletedCount)
+		fmt.Printf("[OK] Deleted %d Audit Log entries.\n", resAudit.DeletedCount)
 	}
 
 	// 5. Delete Election Metadata
@@ -110,6 +106,6 @@ func main() {
 	if err != nil {
 		log.Printf("Failed to delete Election Metadata: %v", err)
 	} else {
-		fmt.Printf("✅ Deleted %d Election Metadata entries.\n", resMeta.DeletedCount)
+		fmt.Printf("[OK] Deleted %d Election Metadata entries.\n", resMeta.DeletedCount)
 	}
 }

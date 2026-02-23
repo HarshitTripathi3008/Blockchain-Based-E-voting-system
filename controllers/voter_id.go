@@ -1,4 +1,4 @@
-package controllers
+﻿package controllers
 
 import (
 	"bytes"
@@ -165,7 +165,7 @@ func EmailVoterID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Email
-	subject := "Your BlockVotes Voter ID Card"
+	subject := "Your SecureVote Voter ID Card"
 	body := "<p>Hello " + v.FullName + ",</p><p>Please find attached your official digital Voter ID card for election: " + electionAddr + "</p>"
 
 	// Create attachment
@@ -202,9 +202,9 @@ func createVoterIDPDF(v Voter, electionAddr string) ([]byte, error) {
 		fullName = "Unknown Voter"
 	}
 	idHex := v.ID.Hex()
-	addr := v.Address
-	if addr == "" {
-		addr = "N/A"
+	rollNo := v.RollNo
+	if rollNo == "" {
+		rollNo = "N/A"
 	}
 	mobile := v.Mobile
 	if mobile == "" {
@@ -215,14 +215,15 @@ func createVoterIDPDF(v Voter, electionAddr string) ([]byte, error) {
 	if !v.DOB.IsZero() {
 		dobStr = v.DOB.Format("2006-01-02")
 	}
-	father := v.FatherName
-	if father == "" {
-		father = "N/A"
+	gender := v.Gender
+	if gender == "" {
+		gender = "N/A"
 	}
+	year := v.Year
 
 	// QR Code Content (JSON for verification)
-	qrContent := fmt.Sprintf(`{"id":"%s","name":"%s","father":"%s","dob":"%s","mobile":"%s","email":"%s","election":"%s"}`,
-		idHex, fullName, father, dobStr, mobile, email, electionAddr)
+	qrContent := fmt.Sprintf(`{"id":"%s","name":"%s","gender":"%s","year":"%s","dob":"%s","mobile":"%s","email":"%s","election":"%s"}`,
+		idHex, fullName, gender, year, dobStr, mobile, email, electionAddr)
 
 	qrPng, err := qrcode.Encode(qrContent, qrcode.Medium, 256)
 	if err != nil {
@@ -269,112 +270,93 @@ func createVoterIDPDF(v Voter, electionAddr string) ([]byte, error) {
 	pdf.SetTextColor(255, 255, 255)
 	pdf.SetFont("Arial", "B", 14)
 	pdf.SetXY(x+5, y+5)
-	pdf.Cell(0, 8, "BLOCKVOTES ELECTION COMMISSION")
+	pdf.Cell(0, 8, "SecureVote ELECTION COMMISSION")
 
-	pdf.SetFont("Arial", "", 9)
+	pdf.SetFont("Arial", "", 8)
 	pdf.SetXY(x+5, y+11)
 	pdf.Cell(0, 5, fmt.Sprintf("Election: %s", electionAddr))
 
-	// 3. Photo
-	photoW, photoH := 30.0, 35.0
+	// 3. Photo (Left)
+	photoW, photoH := 35.0, 45.0
 	photoX, photoY := x+6, y+25
 
 	if len(photoBytes) > 0 {
-		// Draw uploaded photo
 		opt := gofpdf.ImageOptions{ImageType: photoFmt, ReadDpi: true}
 		pdf.RegisterImageOptionsReader("profile_pic", opt, bytes.NewReader(photoBytes))
 		pdf.ImageOptions("profile_pic", photoX, photoY, photoW, photoH, false, opt, 0, "")
 		pdf.SetDrawColor(150, 150, 150)
-		pdf.Rect(photoX, photoY, photoW, photoH, "D") // border around photo
+		pdf.Rect(photoX, photoY, photoW, photoH, "D")
 	} else {
 		// Placeholder
 		pdf.SetFillColor(220, 220, 220)
 		pdf.Rect(photoX, photoY, photoW, photoH, "F")
 		pdf.SetDrawColor(150, 150, 150)
 		pdf.Rect(photoX, photoY, photoW, photoH, "D")
-		// "No Photo" Text
 		pdf.SetTextColor(100, 100, 100)
 		pdf.SetFont("Arial", "I", 8)
-		pdf.SetXY(photoX+2, photoY+15)
+		pdf.SetXY(photoX+2, photoY+20)
 		pdf.Cell(photoW, 5, "Photo N/A")
 	}
 
 	// 4. Details Column
-	labelX := photoX + photoW + 8
-	valX := labelX + 28
-	currentY := y + 26.0
-	lineHeight := 6.0 // Reduced from 7.0 to fix overlap
+	// 4. Details (Center-Right)
+	textX := photoX + photoW + 8
+	textY := y + 26.0
+	lineHeight := 6.0
 
-	pdf.SetTextColor(0, 0, 0)
-
-	// Helper macros
-	printRow := func(label, value string, smallFont bool) {
+	// Helper to draw field
+	drawField := func(label, value string) {
+		pdf.SetTextColor(0, 0, 0)
+		// Label
 		pdf.SetFont("Arial", "B", 10)
-		pdf.SetXY(labelX, currentY)
-		pdf.Cell(25, 6, label+":")
+		pdf.SetXY(textX, textY)
+		pdf.Cell(25, 5, label+":")
 
-		fontSize := 10.0
-		if smallFont {
-			fontSize = 8.0
-		}
-		pdf.SetFont("Arial", "", fontSize)
-		pdf.SetXY(valX, currentY)
+		// Value
+		pdf.SetFont("Arial", "", 10)
+		pdf.SetXY(textX+25, textY)
+		pdf.Cell(60, 5, value)
 
-		// Adjust Y slightly for small font if needed, but standard cell works
-		pdf.Cell(70, 6, value)
-
-		currentY += lineHeight
+		textY += lineHeight
 	}
 
-	printRow("Name", fullName, false)
-	printRow("Father Name", father, false)
-	printRow("DOB", dobStr, false)
-	printRow("Mobile", mobile, false)
-	printRow("Email", email, true) // Email might be long too
-	// Address might be long, handle wrapping manually or concise
-	// Simple truncate for now
-	if len(addr) > 50 {
-		addr = addr[:47] + "..."
+	drawField("Name", fullName)
+	drawField("Gender", gender)
+	drawField("Year", year)
+	drawField("DOB", dobStr)
+	drawField("Mobile", mobile)
+	drawField("Roll No", rollNo)
+	drawField("Voter ID", idHex)
+	drawField("Email", email)
+
+	// 5. QR Code (Far Right)
+	// Positioned to the right of fields.
+	// User request: "above the voter id and below the name"
+	// Name is at y+26. Ends approx y+31.
+	// Voter ID is at y+62.
+	// We position QR between y+32 and y+62.
+	qrSize := 28.0
+	qrX := x + wCard - qrSize - 5
+	qrY := y + 33 // aligned below Name (y+26) and above Voter ID (y+62)
+
+	if qrPng != nil {
+		opt := gofpdf.ImageOptions{ImageType: "PNG", ReadDpi: true}
+		pdf.RegisterImageOptionsReader("qr", opt, bytes.NewReader(qrPng))
+		pdf.ImageOptions("qr", qrX, qrY, qrSize, qrSize, false, opt, 0, "")
 	}
-	printRow("Address", addr, true)   // Address small font
-	printRow("Voter ID", idHex, true) // Voter ID small font
 
-	// 5. QR Code
-	// Place bottom right
-	qrSize := 32.0
-	qrX := x + wCard - qrSize - 4
-	qrY := y + hCard - qrSize - 4
+	// 6. Footer (Bottom)
+	footerY := y + hCard - 12
+	pdf.SetY(footerY)
+	pdf.SetX(x + 5)
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetFont("Arial", "B", 9)
+	pdf.Cell(0, 5, "Issuing Authority: SecureVote ELECTION COMMISSION")
 
-	// Adjust QR to not overlap if text is really long, but
-	// printRow stops at: 26 + 7*6 = 68. y+68 = 108.
-	// QR starts at y + 85 - 36 = y + 49.
-	// Overlap Check: Data column (Left) vs QR (Right).
-	// valX ~ 80mm from left of card. Text width ~60mm. 80+60=140.
-	// QR starts at 140 - 36 = 104.
-	// Overlap IS likely if text is long.
-	// But we moved lineHeight to 6, so Vertical space is saved.
-	// Let's ensure text doesn't bleed into QR.
-	// We won't fix horizontal overlap complexly now, just vertical fix helps.
-
-	opt := gofpdf.ImageOptions{ImageType: "PNG", ReadDpi: true}
-	pdf.RegisterImageOptionsReader("qrcode.png", opt, bytes.NewReader(qrPng))
-	pdf.ImageOptions("qrcode.png", qrX, qrY, qrSize, qrSize, false, opt, 0, "")
-
-	// 6. Footer Signature area
-	// Position: y + hCard - 15 = y + 70.
-	// printRow ends at y + 68.
-	// 70 > 68. Safe vertical gap now!
-
-	pdf.SetDrawColor(0, 0, 0)
-	pdf.Line(x+wCard-45, y+hCard-15, x+wCard-10, y+hCard-15)
-	pdf.SetFont("Arial", "I", 8)
-	pdf.SetXY(x+wCard-45, y+hCard-14)
-	pdf.Cell(35, 4, "Issuing Authority")
-
-	// Disclaimer
+	pdf.SetY(footerY + 5)
+	pdf.SetX(x + 5)
 	pdf.SetTextColor(100, 100, 100)
-	pdf.SetXY(x+5, y+hCard-8)
-	pdf.SetFont("Arial", "", 7)
+	pdf.SetFont("Arial", "", 8)
 	pdf.Cell(0, 5, "This card is digitally verified on the Ethereum blockchain.")
 
 	var buf bytes.Buffer

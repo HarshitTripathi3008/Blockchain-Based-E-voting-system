@@ -21,7 +21,7 @@ A secure, transparent, and decentralized electronic voting system built with Go,
 *   **Routing:** [Gorilla Mux](https://github.com/gorilla/mux)
 *   **Ethereum Client:** [Go-Ethereum (geth)](https://geth.ethereum.org/)
 *   **Frontend:** HTML/CSS/JS (served from `pages/` and `static/`)
-*   **Image Storage:** Cloudinary
+*   **Image Storage:** AWS S3 (High availability storage for candidate/voter photos)
 *   **PDF Generation:** gofpdf
 
 ## 📋 Prerequisites
@@ -30,7 +30,7 @@ Before running the application, ensure you have the following installed:
 
 *   [Go](https://go.dev/dl/) (v1.24 or later)
 *   [MongoDB](https://www.mongodb.com/try/download/community) (running locally or a cloud instance)
-*   [Ganache](https://trufflesuite.com/ganache/) (or any Ethereum JSON-RPC node)
+*   [Ganache](https://trufflesuite.com/ganache/) (Use the modern `ganache` package via `npx ganache`)
 *   [Git](https://git-scm.com/)
 
 ## ⚙️ Installation & Setup
@@ -66,8 +66,11 @@ Before running the application, ensure you have the following installed:
     EMAIL=<YOUR_EMAIL_FOR_SENDING_NOTIFICATIONS>
     PASSWORD=<YOUR_EMAIL_APP_PASSWORD>
 
-    # Cloudinary Configuration (For Images)
-    CLOUDINARY_URL=<YOUR_CLOUDINARY_URL>
+    # AWS S3 Configuration (For Images)
+    AWS_ACCESS_KEY_ID=<YOUR_ACCESS_KEY>
+    AWS_SECRET_ACCESS_KEY=<YOUR_SECRET_KEY>
+    AWS_REGION=<YOUR_REGION>
+    AWS_S3_BUCKET=<YOUR_BUCKET_NAME>
     ```
 
 4.  **Prepare Smart Contracts**
@@ -83,7 +86,11 @@ Before running the application, ensure you have the following installed:
     Ensure your MongoDB service is running.
 
 2.  **Start Ethereum Node**
-    Open Ganache and ensure it is running on `127.0.0.1:8545`. Copy one of the private keys to your `.env` file.
+    Run the modern Ganache CLI:
+    ```bash
+    npx ganache --database.dbPath ./ganache_db --wallet.deterministic
+    ```
+    (Note: Using `npx ganache` avoids "nonce generation" errors common in legacy `ganache-cli` on Node 17+). Copy one of the private keys to your `.env` file.
 
 3.  **Run the Application**
     ```bash

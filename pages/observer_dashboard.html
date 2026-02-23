@@ -1,176 +1,348 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Election Commission Dashboard - BlockVotes</title>
+  <title>Election Auditor Dashboard - SecureVote -- E-Voting System</title>
   <link rel="stylesheet" href="/static/css/global.css">
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap"
     rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="/static/js/ui.js?v=2"></script>
+  <script src="/static/js/ui.js?v=3"></script>
   <style>
+    :root {
+      --glass-bg: rgba(23, 23, 33, 0.7);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --primary: #6c5ce7;
+      --accent: #00cec9;
+      --text-main: #ffffff;
+      --text-muted: #b2bec3;
+    }
+
+    body {
+      background-color: #0f0f13;
+      background-image:
+        radial-gradient(circle at 15% 50%, rgba(108, 92, 231, 0.15) 0%, transparent 25%),
+        radial-gradient(circle at 85% 30%, rgba(0, 206, 201, 0.15) 0%, transparent 25%);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
     .layout {
       display: flex;
       min-height: 100vh;
     }
 
+    /* Sidebar */
     .sidebar {
-      width: 250px;
-      background: rgba(23, 23, 33, 0.9);
+      width: 260px;
+      background: var(--glass-bg);
       border-right: 1px solid var(--glass-border);
-      padding: 2rem 1rem;
+      backdrop-filter: blur(12px);
+      padding: 2rem 1.5rem;
       display: flex;
       flex-direction: column;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      z-index: 10;
     }
 
-    .main-content {
-      flex: 1;
-      padding: 2rem;
-      overflow-y: auto;
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 3rem;
+      padding-left: 0.5rem;
+    }
+
+    .brand img {
+      width: 32px;
+      height: 32px;
+    }
+
+    .brand h3 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+      margin: 0;
+      background: linear-gradient(135deg, #fff 0%, #a29bfe 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
 
     .nav-btn {
       text-align: left;
-      padding: 1rem;
+      padding: 1rem 1.25rem;
       margin-bottom: 0.5rem;
       background: transparent;
       color: var(--text-muted);
-      border: none;
-      border-radius: 8px;
+      border: 1px solid transparent;
+      border-radius: 12px;
       cursor: pointer;
-      transition: all 0.3s;
-      font-size: 1rem;
+      transition: all 0.2s ease;
+      font-size: 0.95rem;
+      font-weight: 500;
       width: 100%;
-      font-family: var(--font-body);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
     }
 
-    .nav-btn:hover,
-    .nav-btn.active {
-      background: rgba(108, 92, 231, 0.1);
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
       color: #fff;
+    }
+
+    .nav-btn.active {
+      background: linear-gradient(90deg, rgba(108, 92, 231, 0.2) 0%, rgba(108, 92, 231, 0.05) 100%);
+      color: #a29bfe;
+      border: 1px solid rgba(108, 92, 231, 0.3);
+      box-shadow: 0 4px 15px rgba(108, 92, 231, 0.1);
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      padding: 2.5rem 3rem;
+      overflow-y: auto;
+    }
+
+    .header-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 3rem;
+    }
+
+    .header-section h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: rgba(0, 184, 148, 0.1);
+      border: 1px solid rgba(0, 184, 148, 0.3);
+      border-radius: 50px;
+      color: #55efc4;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .election-card {
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      padding: 2rem;
+      margin-bottom: 2.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .election-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      opacity: 0.7;
     }
 
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(3, 1fr);
       gap: 1.5rem;
-      margin-bottom: 2rem;
+      margin-bottom: 2.5rem;
     }
 
     .stat-card {
       padding: 1.5rem;
-      border-radius: 12px;
-      background: var(--glass-bg);
+      border-radius: 16px;
+      background: rgba(30, 30, 40, 0.6);
       border: 1px solid var(--glass-border);
+      transition: transform 0.2s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      background: rgba(30, 30, 40, 0.8);
     }
 
     .stat-val {
-      font-size: 2rem;
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.5rem;
       font-weight: 700;
-      color: var(--primary-color);
+      color: #fff;
       margin-top: 0.5rem;
+      line-height: 1;
     }
 
     .stat-label {
       font-size: 0.9rem;
       color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    .charts-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.5rem;
     }
 
     .chart-container {
-      background: var(--glass-bg);
+      background: rgba(30, 30, 40, 0.6);
       border: 1px solid var(--glass-border);
       border-radius: 16px;
-      padding: 2rem;
-      margin-bottom: 2rem;
+      padding: 1.5rem;
       height: 400px;
       position: relative;
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .chart-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #dfe6e9;
+    }
+
+    /* Loader Pulse */
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #ff7675;
+      border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(255, 118, 117, 0.7);
+      animation: pulse-red 2s infinite;
+    }
+
+    @keyframes pulse-red {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(255, 118, 117, 0.7);
+      }
+
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 6px rgba(255, 118, 117, 0);
+      }
+
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(255, 118, 117, 0);
+      }
     }
   </style>
 </head>
 
 <body>
-  <!-- Hamburger Menu Button (Mobile Only) -->
-  <button class="hamburger-btn" onclick="UI.toggleSidebar()" aria-label="Toggle Menu">
-    <div class="hamburger-icon">
-      <span></span>
-      <span></span>
-      <span></span>
-    </div>
-  </button>
-
-  <!-- Sidebar Overlay (Mobile Only) -->
-  <div class="sidebar-overlay" onclick="UI.closeSidebar()"></div>
-
   <div class="layout">
-    <!-- Sidebar -->
     <aside class="sidebar">
-      <div style="text-align: center; margin-bottom: 3rem;">
-        <img src="/static/logo3.png" alt="Logo" style="width: 50px; margin-bottom: 0.5rem;" />
-        <h3 style="margin:0;">BlockVotes</h3>
+      <div class="brand">
+        <img src="/static/logo3.png" alt="Logo" />
+        <h3>SecureVote <br> E-Voting System</h3>
       </div>
       <nav style="flex: 1;">
-        <button id="dashboardBtn" class="nav-btn active">Dashboard</button>
+        <button id="dashboardBtn" class="nav-btn active">
+          <span>&#128202;</span> Dashboard
+        </button>
       </nav>
-      <button id="logoutBtn" class="nav-btn" style="color: var(--error-color); margin-top: auto;">Logout</button>
+      <button id="logoutBtn" class="nav-btn" style="color: #ff7675; margin-top: auto;">
+        <span>&#128682;</span> Logout
+      </button>
     </aside>
 
     <main class="main-content">
-      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+      <div class="header-section">
         <div>
-          <h2>Election Observer Dashboard</h2>
-          <p style="color: var(--text-muted);">Real-time election monitoring</p>
+          <h2>Auditor Dashboard</h2>
+          <p style="color: var(--text-muted);">Real-time independent monitoring of election integrity</p>
         </div>
-        <div style="text-align: right; font-size: 0.9rem;">
-          <div id="companyEmailDisplay" style="color: #fff; font-weight: 600;"></div>
-          <div id="electionAddrDisplay" style="color: var(--text-muted); font-family: monospace;"></div>
+        <div class="status-badge">
+          <div class="live-dot"></div>
+          LIVE MONITORING
         </div>
       </div>
 
-      <div class="glass-card" style="margin-bottom: 2rem;">
-        <h3 style="margin-bottom: 0.5rem;">Current Election</h3>
-        <h1 id="electionName" style="color: var(--accent-color);">—</h1>
-        <p id="electionDesc" style="color: var(--text-muted); margin-top: 0.5rem;">—</p>
+      <div class="election-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <h5
+              style="color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.1em;">
+              Current Election</h5>
+            <h1 id="electionName"
+              style="font-family: 'Outfit', sans-serif; font-size: 2.5rem; margin-bottom: 0.5rem; background: linear-gradient(90deg, #fff, #b2bec3); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
+              â€”</h1>
+            <p id="electionDesc" style="color: var(--text-muted); max-width: 600px;">Loading details...</p>
+          </div>
+          <div style="text-align: right;">
+            <div
+              style="background: rgba(0,0,0,0.3); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--glass-border);">
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">CONTRACT ADDRESS</div>
+              <div id="electionAddrDisplay"
+                style="font-family: 'Roboto Mono', monospace; font-size: 0.9rem; color: #a29bfe;">0x...</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-label">Total Candidates</div>
-          <div id="candidatesCount" class="stat-val">—</div>
+          <div id="candidatesCount" class="stat-val">0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Total Voters</div>
-          <div id="votersCount" class="stat-val">—</div>
+          <div class="stat-label">Registered Voters</div>
+          <div id="votersCount" class="stat-val">0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Total Votes Cast</div>
-          <div id="votesCount" class="stat-val">—</div>
+          <div class="stat-label" style="color: #00cec9;">Votes Cast</div>
+          <div id="votesCount" class="stat-val" style="color: #00cec9;">0</div>
         </div>
       </div>
 
-      <!-- Charts Section -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
-        <div class="chart-container fade-in">
-          <h3 style="margin-bottom: 1rem;">Live Results</h3>
+      <div class="charts-row">
+        <div class="chart-container">
+          <div class="chart-header">
+            <div class="chart-title">Candidate Performance</div>
+          </div>
           <canvas id="resultsChart"></canvas>
         </div>
-        <div class="chart-container fade-in">
-          <h3 style="margin-bottom: 1rem;">Turnout Percentage</h3>
+        <div class="chart-container">
+          <div class="chart-header">
+            <div class="chart-title">Voter Turnout</div>
+          </div>
           <canvas id="turnoutChart"></canvas>
         </div>
       </div>
-
 
     </main>
   </div>
 
   <script>
-    // --- utility helpers (safe JSON parsing) ---
     let resultsChart = null;
-
-
+    let turnoutChart = null;
 
     function getElectionAddress() {
       const cookie = Cookies.get('address');
@@ -179,209 +351,139 @@
       return params.get('address') || '';
     }
 
-    function getCompanyEmail() {
-      return Cookies.get('company_email') || localStorage.getItem('companyEmail') || '';
-    }
-
-    function updateHeaderDisplays() {
-      document.getElementById('companyEmailDisplay').textContent = '👁️ Observer Mode';
-      const addr = getElectionAddress();
-      document.getElementById('electionAddrDisplay').textContent = addr ? `${addr.substr(0, 10)}...${addr.substr(-8)}` : 'No election selected';
-    }
-
-    // --- load dashboard data (keep original behavior but robust) ---
     async function loadDashboard() {
       const addr = getElectionAddress();
       if (!addr) {
-        document.getElementById('electionName').textContent = 'No election selected';
-        document.getElementById('electionDesc').textContent = 'Please create an election first.';
+        document.getElementById('electionName').textContent = 'No Election Selected';
+        document.getElementById('electionDesc').textContent = 'Please return to login and provide a valid election address.';
         return;
       }
 
-      UI.showLoader('Loading Stats...');
-      const encoded = encodeURIComponent(addr);
+      document.getElementById('electionAddrDisplay').textContent = addr;
+
       try {
-        // election details
-        const respDetails = await fetch(`/api/elections/${encoded}/details`, { headers: { 'Accept': 'application/json' } });
-        if (respDetails.ok) {
-          const body = await UI.safeJson(respDetails);
-          const electionName = body?.data?.election_name || body?.election_name || "Unnamed election";
-          const electionDesc = body?.data?.election_desc || body?.election_desc || "";
-          document.getElementById('electionName').textContent = electionName;
-          document.getElementById('electionDesc').textContent = electionDesc;
-        } else {
-          document.getElementById('electionName').textContent = 'Unnamed election';
+        const encoded = encodeURIComponent(addr);
+
+        // Fetch Details with Cache Busting
+        const ts = Date.now();
+        const [detailsRes, candidatesRes, votersRes] = await Promise.all([
+          fetch(`/api/elections/${encoded}/details?t=${ts}`),
+          fetch(`/api/elections/${encoded}/candidates?t=${ts}`),
+          fetch(`/api/elections/${encoded}/voters?t=${ts}`)
+        ]);
+
+        // Process Details
+        if (detailsRes.ok) {
+          const d = await detailsRes.json();
+          const name = d.data?.election_name || d.election_name || "Unnamed Election";
+          const desc = d.data?.election_desc || d.election_desc || "No description available.";
+          document.getElementById('electionName').textContent = name;
+          document.getElementById('electionDesc').textContent = desc;
         }
 
-        // candidates
-        const respCandidates = await fetch(`/api/elections/${encoded}/candidates`, { headers: { 'Accept': 'application/json' } });
+        // Process Candidates
         let candidates = [];
-        if (respCandidates.ok) {
-          const cbody = await safeJson(respCandidates);
-          if (Array.isArray(cbody)) candidates = cbody;
-          else candidates = cbody?.candidates || cbody?.data?.candidates || [];
+        if (candidatesRes.ok) {
+          const cBody = await candidatesRes.json();
+          candidates = Array.isArray(cBody.candidates) ? cBody.candidates : [];
+          document.getElementById('candidatesCount').textContent = candidates.length;
         }
-        document.getElementById('candidatesCount').textContent = String(candidates.length || 0);
 
-        // voters
-        const respVoters = await fetch(`/api/elections/${encoded}/voters`, { headers: { 'Accept': 'application/json' } });
+        // Process Voters
         let voters = [];
-        if (respVoters.ok) {
-          const vbody = await safeJson(respVoters);
-          voters = Array.isArray(vbody?.voters) ? vbody.voters : (Array.isArray(vbody) ? vbody : []);
+        if (votersRes.ok) {
+          const vBody = await votersRes.json();
+          voters = vBody.voters || [];
+          document.getElementById('votersCount').textContent = voters.length;
         }
-        document.getElementById('votersCount').textContent = String(voters.length || 0);
 
-        // total votes (sum up voteCount/votes fields)
-        const totalVotes = (candidates || []).reduce((sum, c) => {
-          const v = Number(c.voteCount || c.votes || c.vote_count || 0);
-          return sum + (isNaN(v) ? 0 : v);
-        }, 0);
-        document.getElementById('votesCount').textContent = String(totalVotes);
+        // Calculate Votes
+        const totalVotes = candidates.reduce((acc, c) => acc + Number(c.voteCount || 0), 0);
+        document.getElementById('votesCount').textContent = totalVotes;
 
-        renderChart(candidates);
-        renderTurnoutChart(totalVotes, voters.length);
+        renderCharts(candidates, voters.length, totalVotes);
+
       } catch (err) {
-        console.warn('Failed to load dashboard data', err);
-        UI.toast('Failed to load dashboard data', 'error');
-      } finally {
-        UI.hideLoader();
+        console.error("Dashboard Load Error:", err);
+        UI.toast("Failed to load real-time data", "error");
       }
     }
 
-    let turnoutChart = null;
-    function renderTurnoutChart(votes, totalVoters) {
-      const ctx = document.getElementById('turnoutChart').getContext('2d');
-      const percentage = totalVoters > 0 ? ((votes / totalVoters) * 100).toFixed(1) : 0;
+    function renderCharts(candidates, totalVoters, totalVotes) {
+      // --- Bar Chart ---
+      const ctxResults = document.getElementById('resultsChart').getContext('2d');
+      if (resultsChart) resultsChart.destroy();
 
-      if (turnoutChart) turnoutChart.destroy();
-
-      turnoutChart = new Chart(ctx, {
-        type: 'doughnut',
+      resultsChart = new Chart(ctxResults, {
+        type: 'bar',
         data: {
-          labels: ['Voted', 'Not Voted'],
+          labels: candidates.map(c => c.name),
           datasets: [{
-            data: [votes, Math.max(0, totalVoters - votes)],
-            backgroundColor: ['#00b894', '#2d3436'],
-            borderWidth: 0
+            label: 'Votes',
+            data: candidates.map(c => Number(c.voteCount)),
+            backgroundColor: 'rgba(108, 92, 231, 0.7)',
+            borderColor: '#a29bfe',
+            borderWidth: 1,
+            borderRadius: 6,
+            barThickness: 30
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          cutout: '70%',
-          plugins: {
-            legend: { position: 'bottom', labels: { color: '#fff' } },
-            title: {
-              display: true,
-              text: `${percentage}% Turnout`,
-              color: '#fff',
-              font: { size: 16 }
+          plugins: { legend: { display: false } },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#b2bec3' }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: '#b2bec3' }
             }
           }
         }
       });
-    }
 
-    function renderChart(candidates) {
-      // ... (existing bar chart logic)
-      const ctx = document.getElementById('resultsChart').getContext('2d');
-      const labels = candidates.map(c => c.name || 'Unknown');
-      const data = candidates.map(c => Number(c.voteCount || c.votes || 0));
+      // --- Donut Chart ---
+      const ctxTurnout = document.getElementById('turnoutChart').getContext('2d');
+      if (turnoutChart) turnoutChart.destroy();
 
-      if (resultsChart) {
-        resultsChart.destroy();
-      }
+      const voted = totalVotes;
+      const notVoted = Math.max(0, totalVoters - voted);
 
-      resultsChart = new Chart(ctx, {
-        type: 'bar',
+      turnoutChart = new Chart(ctxTurnout, {
+        type: 'doughnut',
         data: {
-          labels: labels,
+          labels: ['Voted', 'Pending'],
           datasets: [{
-            label: '# of Votes',
-            data: data,
-            backgroundColor: 'rgba(108, 92, 231, 0.6)', // solid color for all? No, let's keep array if preferred or simple
-            backgroundColor: [
-              'rgba(108, 92, 231, 0.6)', 'rgba(9, 132, 227, 0.6)', 'rgba(0, 184, 148, 0.6)',
-              'rgba(253, 203, 110, 0.6)', 'rgba(225, 112, 85, 0.6)', 'rgba(214, 48, 49, 0.6)'
-            ],
-            borderColor: [
-              'rgba(108, 92, 231, 1)', 'rgba(9, 132, 227, 1)', 'rgba(0, 184, 148, 1)',
-              'rgba(253, 203, 110, 1)', 'rgba(225, 112, 85, 1)', 'rgba(214, 48, 49, 1)'
-            ],
-            borderWidth: 1
+            data: [voted, notVoted],
+            backgroundColor: ['#00cec9', 'rgba(255,255,255,0.1)'],
+            borderWidth: 0,
+            hoverOffset: 4
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          scales: {
-            y: { beginAtZero: true, ticks: { color: '#b2bec3' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
-            x: { ticks: { color: '#b2bec3' }, grid: { display: false } }
-          },
-          plugins: { legend: { display: false } }
+          cutout: '75%',
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#b2bec3', usePointStyle: true } }
+          }
         }
       });
     }
 
-
-
-    // --- get winner from candidates list (selects highest votes) ---
-    async function computeWinner(electionAddress) {
-      if (!electionAddress) return null;
-      const encoded = encodeURIComponent(electionAddress);
-      try {
-        const resp = await fetch(`/api/elections/${encoded}/candidates`, { headers: { 'Accept': 'application/json' } });
-        if (!resp.ok) return null;
-        const body = await safeJson(resp);
-        let candidates = [];
-        if (Array.isArray(body)) candidates = body;
-        else candidates = body?.candidates || body?.data?.candidates || [];
-
-        if (!candidates || candidates.length === 0) return null;
-
-        let winner = null;
-        let maxVotes = -1;
-        for (const c of candidates) {
-          const v = Number(c.voteCount || c.votes || c.vote_count || 0);
-          const votes = isNaN(v) ? 0 : v;
-          if (votes > maxVotes) {
-            maxVotes = votes;
-            winner = c;
-          }
-        }
-        if (!winner && candidates.length > 0) winner = candidates[0];
-
-        if (winner) {
-          return {
-            name: winner.name || winner.candidate_name || winner.candidate || '(unnamed)',
-            email: winner.email || winner.candidate_email || '',
-            voteCount: Number(winner.voteCount || winner.votes || winner.vote_count || 0)
-          };
-        }
-        return null;
-      } catch (err) {
-        console.error('computeWinner error', err);
-        return null;
-      }
-    }
-
-
-    // --- navigation & event wiring ---
-    function navTo(page) {
-      const addr = getElectionAddress();
-      const q = addr ? `?address=${encodeURIComponent(addr)}` : '';
-      window.location.href = `${page}${q}`;
-    }
-
-    document.getElementById('logoutBtn').addEventListener('click', function () {
-      Cookies.remove('address', { path: '/' });
-      window.location.href = 'observer_login.html';
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      Cookies.remove('address');
+      window.location.href = '/observer_login.html';
     });
 
-    // --- init page ---
-    updateHeaderDisplays();
+    // Auto-refresh every 30s
     loadDashboard();
+    setInterval(loadDashboard, 30000);
+
   </script>
 </body>
 

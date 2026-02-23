@@ -1,4 +1,4 @@
-package controllers
+﻿package controllers
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/smtp"
 	"os"
-	"strconv"
 	"time"
 
 	"MAJOR-PROJECT/bindings"
@@ -23,7 +22,14 @@ var candidateCollection *mongo.Collection
 
 func InitCandidateCollection(client *mongo.Client, dbName string) {
 	candidateCollection = client.Database(dbName).Collection("candidates")
-	fmt.Println("✅ Initialized candidates collection")
+
+	// Create fast lookup index for election lists
+	indexModel := mongo.IndexModel{Keys: bson.D{{Key: "electionAddress", Value: 1}, {Key: "email", Value: 1}}}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, _ = candidateCollection.Indexes().CreateOne(ctx, indexModel)
+
+	fmt.Println("[OK] Initialized candidates collection with indexes")
 }
 
 type Response struct {
@@ -101,7 +107,7 @@ func RegisterCandidate(w http.ResponseWriter, r *http.Request) {
 	}
 	defer client.Close()
 
-	auth, err := getAuth()
+	auth, err := getAuth(client)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(Response{Status: "error", Message: "Failed to create transaction signer: " + err.Error()})
@@ -144,7 +150,7 @@ func RegisterCandidate(w http.ResponseWriter, r *http.Request) {
 			ElectionName:    req.ElectionName,
 			ElectionAddress: req.ElectionAddress,
 			TxHash:          txHashHex,
-			Status:          "submitted",
+			Status:          "submitted", // will update to mined or reverted async
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}
@@ -153,34 +159,36 @@ func RegisterCandidate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// optional wait for mining
-	txTimeoutSec := 0
-	if s := os.Getenv("TX_TIMEOUT"); s != "" {
-		if t, err := strconv.Atoi(s); err == nil && t > 0 {
-			txTimeoutSec = t
-		}
-	}
-	if txTimeoutSec > 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(txTimeoutSec)*time.Second)
+	// Always return success immediately to prevent frontend timeout
+	_ = json.NewEncoder(w).Encode(Response{
+		Status:  "success",
+		Message: "Candidate registration transaction submitted to the blockchain.",
+		Data:    map[string]interface{}{"txHash": txHashHex},
+	})
+
+	// Wait for mining in the background to avoid 30s+ HTTP timeouts
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second) // generous timeout for Sepolia
 		defer cancel()
 		receipt, werr := bind.WaitMined(ctx, client, tx)
 		if werr != nil {
+			fmt.Printf("[ALCHEMY] WaitMined error for tx %s: %v\n", txHashHex, werr)
 			updateCandidateStatus(txHashHex, "pending")
-			_ = json.NewEncoder(w).Encode(Response{Status: "pending", Message: "Transaction submitted but mining confirmation failed: " + werr.Error(), Data: map[string]interface{}{"txHash": txHashHex}})
 		} else {
 			if receipt == nil || receipt.Status != 1 {
+				fmt.Printf("[ALCHEMY] Tx %s reverted\n", txHashHex)
 				updateCandidateStatus(txHashHex, "reverted")
-				_ = json.NewEncoder(w).Encode(Response{Status: "error", Message: "Transaction mined but reverted on-chain", Data: map[string]interface{}{"txHash": txHashHex}})
 			} else {
+				fmt.Printf("[ALCHEMY] Tx %s mined successfully in block %v\n", txHashHex, receipt.BlockNumber)
 				updateCandidateStatus(txHashHex, "mined")
-				_ = json.NewEncoder(w).Encode(Response{Status: "success", Message: "Candidate registered and transaction mined", Data: map[string]interface{}{"txHash": txHashHex, "blockNumber": receipt.BlockNumber.String()}})
 			}
 		}
-	} else {
-		_ = json.NewEncoder(w).Encode(Response{Status: "success", Message: "Candidate registration transaction submitted", Data: map[string]interface{}{"txHash": txHashHex}})
-	}
+	}()
 
-	_ = sendRegistrationEmail(req.Email, req.ElectionName)
+	// Send email asynchronously using the shared email queue from voter.go or simple goroutine
+	go func() {
+		_ = sendRegistrationEmail(req.Email, req.ElectionName)
+	}()
 }
 func updateCandidateStatus(txHash, status string) {
 	if candidateCollection == nil {

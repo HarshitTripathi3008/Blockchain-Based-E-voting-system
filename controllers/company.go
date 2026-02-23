@@ -1,4 +1,4 @@
-package controllers
+﻿package controllers
 
 import (
 	"MAJOR-PROJECT/bindings"
@@ -172,13 +172,16 @@ func AuthenticateCompany(w http.ResponseWriter, r *http.Request) {
 			if err == nil {
 				// Use call opts with request context (non-blocking/polite)
 				callOpts := &bind.CallOpts{Context: r.Context(), Pending: false}
-				deployedAddr, _, _, err := factory.GetDeployedElection(callOpts, req.Email)
-				if err == nil {
-					if deployedAddr != (common.Address{}) {
-						electionAddrHex = deployedAddr.Hex()
+				elections, err := factory.GetDeployedElections(callOpts, req.Email)
+				if err == nil && len(elections) > 0 {
+					// Get the latest one (last in array)
+					latest := elections[len(elections)-1]
+					if latest.DeployedAddress != (common.Address{}) {
+						electionAddrHex = latest.DeployedAddress.Hex()
 					}
+					// TODO: Return all elections in data if frontend supports it
 				}
-				// ignore errors — just return login without election address
+				// ignore errors - just return login without election address
 			}
 		}
 	}
@@ -245,13 +248,20 @@ func ClearDatabase(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Note: We are NOT deleting Voters or Companies, as per original script logic.
-	// Also we are skipping Cloudinary image deletion for now to keep API response fast,
-	// as that requires iterating and external calls. User can still run script for deep clean.
+	// 5. Clear voter registrations (remove election links from voter accounts, but keep the voter accounts)
+	//    This ensures voters no longer see stale elections on their dashboard after a reset.
+	if voterCollection != nil {
+		res, err := voterCollection.UpdateMany(ctx, bson.M{}, bson.M{
+			"$unset": bson.M{"registrations": ""},
+		})
+		if err == nil {
+			deletedStats["voter_registrations_cleared"] = res.ModifiedCount
+		}
+	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":  "success",
-		"message": "Database cleared successfully (Candidates, OTPs, Logs, Metadata)",
+		"message": "Database cleared successfully (Candidates, OTPs, Logs, Metadata, Voter Registrations)",
 		"data":    deletedStats,
 	})
 }

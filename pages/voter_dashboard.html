@@ -1,15 +1,15 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Voter Dashboard - BlockVotes</title>
+    <title>Voter Dashboard - SecureVote -- E-Voting System</title>
     <link rel="stylesheet" href="/static/css/global.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
-    <script src="/static/js/ui.js?v=2"></script>
+    <script src="/static/js/ui.js?v=3"></script>
     <style>
         .layout {
             max-width: 1000px;
@@ -107,6 +107,8 @@
             </div>
             <div>
                 <span id="voterEmailDisplay" style="color: var(--text-muted); margin-right: 1rem;"></span>
+                <button id="changePwdBtn" class="btn btn-sm btn-outline" style="margin-right: 0.5rem;"
+                    onclick="openChangePasswordModal()">Change Password</button>
                 <button id="logoutBtn" class="btn btn-sm btn-outline">Logout</button>
             </div>
         </div>
@@ -130,6 +132,26 @@
         </div>
     </div>
 
+    <!-- Change Password Modal -->
+    <div id="changePasswordModal" class="modal-overlay"
+        style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); display:none; justify-content:center; align-items:center; z-index:1000;">
+        <div class="glass-card fade-in" style="width: 100%; max-width: 400px; padding: 2rem; position: relative;">
+            <h3 style="margin-bottom: 1.5rem; color: var(--accent-color);">Change Password</h3>
+            <div style="margin-bottom: 1rem;">
+                <input type="password" id="newVoterPassword" placeholder="New Password"
+                    style="width:100%; padding:0.8rem; border-radius:8px; border:1px solid var(--glass-border); background:rgba(0,0,0,0.2); color:#fff;" />
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <input type="password" id="confirmNewVoterPassword" placeholder="Confirm New Password"
+                    style="width:100%; padding:0.8rem; border-radius:8px; border:1px solid var(--glass-border); background:rgba(0,0,0,0.2); color:#fff;" />
+            </div>
+            <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                <button class="btn btn-outline" onclick="closeChangePasswordModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitChangePassword()">Update Password</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const voterId = Cookies.get('voter_id');
         const voterEmail = Cookies.get('voter_email');
@@ -146,6 +168,10 @@
             Cookies.remove('address');
             window.location.href = 'voter_login.html';
         });
+
+        // Back Button Removed 
+        // document.getElementById('logoutBtn').insertAdjacentHTML('beforebegin', 
+        //    `<button onclick="window.location.href='voter_login.html'" class="btn btn-sm btn-outline" style="margin-right:0.5rem;">&larr; Back</button>`);
 
         async function loadData() {
             UI.showLoader('Loading Elections...');
@@ -175,7 +201,8 @@
                         // Find details for this election (try to match from allList or generic)
                         const details = allElections.find(e => e.election_address === reg.election_address) || {};
                         const name = details.election_name || `Election ${reg.election_address.substr(0, 8)}...`;
-                        const statusClass = reg.status === 'Verified' ? 'status-verified' : 'status-pending';
+                        const statusClass = reg.status === 'Verified' ? 'status-verified' :
+                            (reg.status === 'Rejected' ? 'status-rejected' : 'status-pending');
 
                         const div = document.createElement('div');
                         div.className = 'election-card fade-in';
@@ -203,7 +230,7 @@
                 const toJoin = allElections.filter(e => !myElectionMap.has(e.election_address) && e.status !== 'ENDED');
 
                 if (toJoin.length === 0) {
-                    availContainer.innerHTML = '<p class="text-muted" style="text-align:center;">No new elections available to join at this moment.</p>';
+                    availContainer.innerHTML = '<p class="text-muted" style="text-align:center;">No new elections available.</p>';
                 } else {
                     toJoin.forEach(e => {
                         const div = document.createElement('div');
@@ -215,7 +242,8 @@
                             <p>Ends: ${new Date(e.end_date).toLocaleDateString()}</p>
                         </div>
                         <div>
-                            <button onclick="joinElection('${e.election_address}')" class="btn btn-outline">Join Election</button>
+                            <!-- User Requested: Cannot join, only view. Only EC adds them. -->
+                            <button disabled class="btn btn-sm btn-outline" style="opacity:0.6; cursor:not-allowed;">Contact Election Commission to Join</button>
                         </div>
                     `;
                         availContainer.appendChild(div);
@@ -236,33 +264,54 @@
             window.location.href = `vote.html?address=${encodeURIComponent(addr)}`;
         }
 
-        window.joinElection = async function (addr) {
-            if (!confirm("Do you want to join this election?")) return;
+        // --- Change Password Logic ---
+        function openChangePasswordModal() {
+            document.getElementById('changePasswordModal').style.display = 'flex';
+            document.getElementById('newVoterPassword').value = '';
+            document.getElementById('confirmNewVoterPassword').value = '';
+        }
 
-            UI.showLoader("Joining...");
+        function closeChangePasswordModal() {
+            document.getElementById('changePasswordModal').style.display = 'none';
+        }
+
+        async function submitChangePassword() {
+            const newPwd = document.getElementById('newVoterPassword').value;
+            const confirmPwd = document.getElementById('confirmNewVoterPassword').value;
+
+            if (!newPwd || !confirmPwd) {
+                UI.toast('Please fill both fields', 'warning');
+                return;
+            }
+            if (newPwd !== confirmPwd) {
+                UI.toast('Passwords do not match', 'error');
+                return;
+            }
+
+            UI.showLoader('Updating Password...');
             try {
-                const resp = await fetch('/api/voters/join', {
-                    method: 'POST',
+                const resp = await fetch(`/api/voters/${encodeURIComponent(voterId)}`, {
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        voter_id: voterId,
-                        election_address: addr
-                    })
+                    body: JSON.stringify({ password: newPwd })
                 });
+
                 const json = await UI.safeJson(resp);
                 if (resp.ok) {
-                    UI.toast("Joined successfully!", "success");
-                    setTimeout(loadData, 1000);
+                    UI.toast('Password updated successfully', 'success');
+                    closeChangePasswordModal();
                 } else {
-                    UI.toast("Failed: " + json.message, "error");
+                    UI.toast(json?.message || 'Failed to update password', 'error');
                 }
             } catch (err) {
                 console.error(err);
-                UI.toast("Network error", "error");
+                UI.toast('Error updating password', 'error');
             } finally {
                 UI.hideLoader();
             }
         }
+
+        // Removed window.joinElection as user requested removal of self-join capability
 
         loadData();
 

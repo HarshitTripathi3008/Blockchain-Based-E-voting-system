@@ -1,4 +1,4 @@
-package controllers
+﻿package controllers
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"MAJOR-PROJECT/bindings"
@@ -45,6 +45,7 @@ type BlockchainResponse struct {
 // writeJSONHeader sets common JSON + CORS headers
 func writeJSONHeader(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-cache, no-store")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -83,8 +84,9 @@ func getClient() (*ethclient.Client, error) {
 	return client, nil
 }
 
-// getAuth creates a transact opts using ETHEREUM_PRIVATE_KEY and ETHEREUM_CHAIN_ID
-func getAuth() (*bind.TransactOpts, error) {
+// getAuth creates a transact opts using ETHEREUM_PRIVATE_KEY and ETHEREUM_CHAIN_ID.
+// It requires a valid ethclient to fetch the current block nonce safely.
+func getAuth(client *ethclient.Client) (*bind.TransactOpts, error) {
 	priv := strings.TrimSpace(os.Getenv("ETHEREUM_PRIVATE_KEY"))
 	priv = strings.Trim(priv, `"'`)
 	if priv == "" {
@@ -114,6 +116,8 @@ func getAuth() (*bind.TransactOpts, error) {
 		return nil, fmt.Errorf("failed to create transactor: %w", err)
 	}
 
+	auth.Nonce = getNextNonce(client, auth.From)
+
 	// optional GAS_LIMIT override (env expects decimal integer)
 	if gl := strings.TrimSpace(os.Getenv("GAS_LIMIT")); gl != "" {
 		gl = strings.Trim(gl, `"'`)
@@ -131,6 +135,36 @@ func getAuth() (*bind.TransactOpts, error) {
 	}
 
 	return auth, nil
+}
+
+// Global Nonce Manager for High Concurrency
+var (
+	nonceMutex sync.Mutex
+	lastNonce  uint64
+)
+
+// getNextNonce guarantees a strictly increasing nonce for the admin wallet, even during extreme concurrency.
+func getNextNonce(client *ethclient.Client, address common.Address) *big.Int {
+	nonceMutex.Lock()
+	defer nonceMutex.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Fetch pending nonce from the network
+	pendingNonce, err := client.PendingNonceAt(ctx, address)
+	if err != nil {
+		log.Printf("[WARN] Failed to fetch pending nonce for %s: %v. Using last known nonce.", address.Hex(), err)
+		pendingNonce = lastNonce
+	}
+
+	// If our internal counter is higher (meaning we have unbroadcasted local txs), use it.
+	if lastNonce >= pendingNonce {
+		pendingNonce = lastNonce + 1
+	}
+
+	lastNonce = pendingNonce
+	return new(big.Int).SetUint64(pendingNonce)
 }
 
 // normalizeFactoryAddr returns a validated, 0x-prefixed factory address string and the parsed common.Address.
@@ -203,7 +237,7 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 	}
 	defer client.Close()
 
-	auth, err := getAuth()
+	auth, err := getAuth(client)
 	if err != nil {
 		log.Printf("CreateElection: getAuth error: %v", err)
 		respondError(w, http.StatusInternalServerError, "failed to create transaction signer")
@@ -247,80 +281,72 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// optionally wait for mining if TX_TIMEOUT set (seconds)
-	confirmed := false
-	if txTimeoutStr := os.Getenv("TX_TIMEOUT"); txTimeoutStr != "" {
-		if t, err := strconv.Atoi(txTimeoutStr); err == nil && t > 0 {
-			ctx2, cancel2 := context.WithTimeout(context.Background(), time.Duration(t)*time.Second)
-			defer cancel2()
-			receipt, werr := bind.WaitMined(ctx2, client, tx)
-			if werr != nil {
-				// return pending but include txHash so frontend can poll
-				log.Printf("CreateElection: WaitMined error: %v", werr)
-				respondJSON(w, http.StatusOK, map[string]interface{}{
-					"status":           "pending",
-					"message":          "createElection tx submitted; mining confirmation failed: " + werr.Error(),
-					"election_address": "",
-					"confirmed":        false,
-					"data":             map[string]interface{}{"txHash": tx.Hash().Hex()},
-				})
-				return
-			}
-			if receipt.Status != 1 {
-				log.Printf("CreateElection: receipt indicates revert tx %s", tx.Hash().Hex())
-				respondError(w, http.StatusInternalServerError, "createElection transaction reverted")
-				return
-			}
-			confirmed = true
-		}
-	}
-
-	// After tx mined (or if not waiting), try to read deployed address via factory's GetDeployedElection
-	factoryCaller, err := bindings.NewElectionFactoryCaller(factoryAddr, client)
-	if err != nil {
-		// not fatal; we'll still return tx hash
-		log.Printf("CreateElection: NewElectionFactoryCaller binding error for %s: %v", factoryRaw, err)
-	} else {
-		callOpts := &bind.CallOpts{Pending: false, Context: r.Context()}
-		deployedAddr, name, desc, derr := factoryCaller.GetDeployedElection(callOpts, req.CompanyEmail)
-		if derr != nil {
-			log.Printf("CreateElection: GetDeployedElection read error for email %s: %v", req.CompanyEmail, derr)
-		} else {
-			if deployedAddr != (common.Address{}) {
-				addrHex := deployedAddr.Hex()
-				resp := map[string]interface{}{
-					"status":           "success",
-					"message":          "createElection transaction submitted",
-					"election_address": addrHex,
-					"confirmed":        confirmed,
-					"data": map[string]interface{}{
-						"txHash":          tx.Hash().Hex(),
-						"deployedAddress": addrHex,
-						"election_name":   name,
-						"election_desc":   desc,
-					},
-				}
-				respondJSON(w, http.StatusOK, resp)
-				// AUDIT LOG
-				go LogAction(deployedAddr.Hex(), "ELECTION_CREATED", req.CompanyEmail, fmt.Sprintf("Created election '%s'", req.ElectionName))
-				// METADATA INIT
-				go EnsureMetadata(deployedAddr.Hex())
-				return
-			}
-			log.Printf("CreateElection: factory returned zero address for email %s after create tx", req.CompanyEmail)
-		}
-	}
-
-	// fallback: return txHash and empty address if we couldn't read the deployed address
+	// Respond immediately that transaction was submitted
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":           "success",
 		"message":          "createElection transaction submitted",
 		"election_address": "",
-		"confirmed":        confirmed,
+		"confirmed":        false,
 		"data": map[string]interface{}{
 			"txHash": tx.Hash().Hex(),
 		},
 	})
+
+	// Wait for mining and fetch deployed address asynchronously
+	go func() {
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 120*time.Second) // generous timeout
+		defer cancel2()
+		receipt, werr := bind.WaitMined(ctx2, client, tx)
+		if werr != nil {
+			log.Printf("[ALCHEMY] CreateElection: WaitMined error: %v", werr)
+			return
+		}
+		if receipt.Status != 1 {
+			log.Printf("[ALCHEMY] CreateElection: receipt indicates revert tx %s", tx.Hash().Hex())
+			return
+		}
+
+		// After tx mined (or if not waiting), try to read deployed address via factory's GetDeployedElection
+		// Note: We need a fresh context here since r.Context() might be cancelled when the HTTP request ends
+		callCtx, callCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer callCancel()
+
+		factoryCaller, err := bindings.NewElectionFactoryCaller(factoryAddr, client)
+		if err != nil {
+			// not fatal; we'll still return tx hash
+			log.Printf("CreateElection: NewElectionFactoryCaller binding error for %s: %v", factoryRaw, err)
+		} else {
+			callOpts := &bind.CallOpts{Pending: false, Context: callCtx}
+
+			// Declare vars to be used after the block
+			var deployedAddr common.Address
+			var name, desc string
+
+			elections, derr := factoryCaller.GetDeployedElections(callOpts, req.CompanyEmail)
+			if derr != nil {
+				log.Printf("CreateElection: GetDeployedElections read error for email %s: %v", req.CompanyEmail, derr)
+			} else if len(elections) > 0 {
+				latest := elections[len(elections)-1]
+				deployedAddr = latest.DeployedAddress
+				name = latest.ElN
+				desc = latest.ElD
+			} else {
+				// No elections found
+				log.Printf("CreateElection: factory returned empty election list for email %s after create tx", req.CompanyEmail)
+			}
+
+			if deployedAddr != (common.Address{}) {
+				addrHex := deployedAddr.Hex()
+				log.Printf("[ALCHEMY] CreateElection async success. Deployed at: %s", addrHex)
+				// AUDIT LOG
+				go LogAction(addrHex, "ELECTION_CREATED", req.CompanyEmail, fmt.Sprintf("Created election '%s'", req.ElectionName))
+				// METADATA INIT
+				go EnsureMetadata(addrHex, name, desc)
+			} else {
+				log.Printf("CreateElection async: factory returned zero address for email %s after create tx", req.CompanyEmail)
+			}
+		}
+	}()
 }
 
 // VoteCandidate uses the election binding to cast a vote.
@@ -376,7 +402,7 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 	}
 	defer client.Close()
 
-	auth, err := getAuth()
+	auth, err := getAuth(client)
 	if err != nil {
 		log.Printf("VoteCandidate: getAuth error: %v", err)
 		respondError(w, http.StatusInternalServerError, "failed to create transaction signer")
@@ -411,28 +437,27 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// optional mining wait
-	if txTimeoutStr := os.Getenv("TX_TIMEOUT"); txTimeoutStr != "" {
-		if t, err := strconv.Atoi(txTimeoutStr); err == nil && t > 0 {
-			ctx2, cancel2 := context.WithTimeout(context.Background(), time.Duration(t)*time.Second)
-			defer cancel2()
-			receipt, werr := bind.WaitMined(ctx2, client, tx)
-			if werr != nil {
-				respondJSON(w, http.StatusOK, BlockchainResponse{Status: "pending", Message: "vote submitted; mining confirmation failed: " + werr.Error(), Data: map[string]interface{}{"txHash": tx.Hash().Hex()}})
-				return
-			}
-			if receipt.Status != 1 {
-				respondError(w, http.StatusInternalServerError, "vote transaction reverted")
-				return
-			}
-			respondJSON(w, http.StatusOK, BlockchainResponse{Status: "success", Message: "vote cast and mined", Data: map[string]interface{}{"txHash": tx.Hash().Hex(), "blockNumber": receipt.BlockNumber.String()}})
-			return
-		}
-	}
+	respondJSON(w, http.StatusOK, BlockchainResponse{
+		Status:  "success",
+		Message: "vote transaction submitted to the blockchain",
+		Data:    map[string]interface{}{"txHash": tx.Hash().Hex()},
+	})
 
-	respondJSON(w, http.StatusOK, BlockchainResponse{Status: "success", Message: "vote transaction submitted", Data: map[string]interface{}{"txHash": tx.Hash().Hex()}})
-	// AUDIT LOG
-	go LogAction(addrNorm, "VOTE_CAST", req.VoterEmail, fmt.Sprintf("Voted for candidate ID %d", req.CandidateID))
+	// Wait for mining asynchronously
+	go func() {
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 120*time.Second) // 2 Min timeout
+		defer cancel2()
+		receipt, werr := bind.WaitMined(ctx2, client, tx)
+		if werr != nil {
+			log.Printf("[ALCHEMY] Vote wait error: %v", werr)
+		} else if receipt.Status != 1 {
+			log.Printf("[ALCHEMY] Vote transaction reverted for tx %s", tx.Hash().Hex())
+		} else {
+			log.Printf("[ALCHEMY] Vote mined successfully in block %v", receipt.BlockNumber)
+			// AUDIT LOG
+			go LogAction(addrNorm, "VOTE_CAST", req.VoterEmail, "Voted successfully (mined)")
+		}
+	}()
 }
 
 // GetElectionCandidates - improved and robust
@@ -454,7 +479,7 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 
 	// Treat common "no value" strings as empty -> db fallback
 	if addrStr == "" || strings.EqualFold(addrStr, "null") || strings.EqualFold(addrStr, "undefined") {
-		log.Printf("GetElectionCandidates: address param empty or null-like (%q) — using DB fallback\n", rawAddr)
+		log.Printf("GetElectionCandidates: address param empty or null-like (%q) - using DB fallback\n", rawAddr)
 		tryDBFallbackWithMessage(w, addrStr, "invalid or truncated election address")
 		return
 	}
@@ -463,9 +488,9 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 	// attempt to resolve it by searching the DB for an electionAddress that starts with this prefix.
 	if strings.HasPrefix(addrStr, "0x") && len(addrStr) < 42 {
 		prefix := addrStr
-		log.Printf("GetElectionCandidates: received truncated address prefix: %q — attempting DB prefix lookup\n", prefix)
+		log.Printf("GetElectionCandidates: received truncated address prefix: %q - attempting DB prefix lookup\n", prefix)
 
-		// If candidateCollection isn't set, we can't search DB — just fallback.
+		// If candidateCollection isn't set, we can't search DB - just fallback.
 		if candidateCollection == nil {
 			log.Printf("GetElectionCandidates: no candidateCollection available for prefix lookup; using DB fallback\n")
 			tryDBFallbackWithMessage(w, addrStr, "invalid or truncated election address")
@@ -510,15 +535,15 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 			log.Printf("GetElectionCandidates: resolved truncated prefix %q -> full address %s via DB\n", prefix, resolved)
 			addrStr = resolved
 		} else if len(found) > 1 {
-			log.Printf("GetElectionCandidates: truncated prefix %q matched multiple addresses (%d) — returning ambiguous error\n", prefix, len(found))
+			log.Printf("GetElectionCandidates: truncated prefix %q matched multiple addresses (%d) - returning ambiguous error\n", prefix, len(found))
 			respondJSON(w, http.StatusBadRequest, map[string]interface{}{
 				"status":  "error",
-				"message": "ambiguous truncated election identifier; multiple elections match this prefix — please provide the full address",
+				"message": "ambiguous truncated election identifier; multiple elections match this prefix - please provide the full address",
 				"matches": len(found),
 			})
 			return
 		} else {
-			log.Printf("GetElectionCandidates: truncated prefix %q did not match any electionAddress in DB — using DB fallback\n", prefix)
+			log.Printf("GetElectionCandidates: truncated prefix %q did not match any electionAddress in DB - using DB fallback\n", prefix)
 			tryDBFallbackWithMessage(w, addrStr, "invalid or truncated election address")
 			return
 		}
@@ -533,7 +558,7 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 
 	// If it's still not a hex address, attempt to resolve as a company email via factory lookup.
 	if !common.IsHexAddress(addrStr) {
-		log.Printf("GetElectionCandidates: address param %q is not hex — trying factory lookup as email\n", addrStr)
+		log.Printf("GetElectionCandidates: address param %q is not hex - trying factory lookup as email\n", addrStr)
 
 		// Try to read factory address and call GetDeployedElection(email)
 		factoryRaw, factoryAddr, ferr := normalizeFactoryAddr()
@@ -572,18 +597,26 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 		}
 
 		callOpts := &bind.CallOpts{Context: r.Context(), Pending: false}
-		deployedAddr, _, _, gerr := factoryCaller.GetDeployedElection(callOpts, addrStr)
+		elections, gerr := factoryCaller.GetDeployedElections(callOpts, addrStr)
 		if gerr != nil {
-			log.Printf("GetElectionCandidates: GetDeployedElection error for %q: %v\n", addrStr, gerr)
+			log.Printf("GetElectionCandidates: GetDeployedElections error for %q: %v\n", addrStr, gerr)
 			tryDBFallbackWithMessage(w, addrStr, "factory lookup failed for provided identifier")
 			return
 		}
-		if deployedAddr == (common.Address{}) {
-			log.Printf("GetElectionCandidates: factory returned zero address for %q — falling back to DB\n", addrStr)
+		if len(elections) == 0 {
+			log.Printf("GetElectionCandidates: factory returned empty list for %q - falling back to DB\n", addrStr)
 			tryDBFallbackWithMessage(w, addrStr, "no deployed election found for provided identifier")
 			return
 		}
-		// resolved — normalize to hex address and continue onchain flow
+		// Use latest
+		deployedAddr := elections[len(elections)-1].DeployedAddress
+
+		if deployedAddr == (common.Address{}) {
+			log.Printf("GetElectionCandidates: factory returned zero address for %q - falling back to DB\n", addrStr)
+			tryDBFallbackWithMessage(w, addrStr, "no deployed election found for provided identifier")
+			return
+		}
+		// resolved - normalize to hex address and continue onchain flow
 		addrStr = deployedAddr.Hex()
 		log.Printf("GetElectionCandidates: resolved %q -> onchain address %s via factory %s\n", rawAddr, addrStr, factoryRaw)
 	}
@@ -679,7 +712,7 @@ func tryDBFallbackWithMessage(w http.ResponseWriter, electionAddress, detail str
 	// Attempt to return DB candidates to keep UI usable
 	// NOTE: candidateCollection should be initialized elsewhere in your app
 	if candidateCollection == nil {
-		// no DB available — return error JSON
+		// no DB available - return error JSON
 		respondJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"status":  "error",
 			"message": "no db fallback available",
@@ -753,8 +786,32 @@ func GetElectionInfo(w http.ResponseWriter, r *http.Request) {
 		rawAddr = "0x" + rawAddr
 	}
 
+	// If not hex, try to resolve as email via factory
 	if !common.IsHexAddress(rawAddr) {
-		respondError(w, http.StatusBadRequest, "invalid election address")
+		// normalize factory
+		_, factoryAddr, ferr := normalizeFactoryAddr()
+		if ferr == nil {
+			client, cerr := getClient()
+			if cerr == nil {
+				defer client.Close()
+				factoryCaller, ferr2 := bindings.NewElectionFactoryCaller(factoryAddr, client)
+				if ferr2 == nil {
+					callOpts := &bind.CallOpts{Context: r.Context(), Pending: false}
+					elections, gerr := factoryCaller.GetDeployedElections(callOpts, rawAddr)
+					if gerr == nil && len(elections) > 0 {
+						// Use latest
+						latest := elections[len(elections)-1]
+						if latest.DeployedAddress != (common.Address{}) {
+							rawAddr = latest.DeployedAddress.Hex()
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if !common.IsHexAddress(rawAddr) {
+		respondError(w, http.StatusBadRequest, "invalid election address or unresolved email")
 		return
 	}
 	electionAddr := common.HexToAddress(rawAddr)
@@ -816,6 +873,9 @@ func GetElectionInfo(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to read election description")
 		return
 	}
+
+	// Backfill/Update Metadata with name and desc from chain
+	go EnsureMetadata(rawAddr, electionName, electionDesc)
 
 	respondJSON(w, http.StatusOK, BlockchainResponse{
 		Status:  "success",

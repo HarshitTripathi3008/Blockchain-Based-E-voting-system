@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Candidate Management - BlockVotes</title>
+  <title>Candidate Management - SecureVote -- E-Voting System</title>
   <link rel="stylesheet" href="/static/css/global.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
     rel="stylesheet">
@@ -116,7 +116,7 @@
     <aside class="sidebar">
       <div style="text-align: center; margin-bottom: 3rem;">
         <img src="/static/logo3.png" alt="Logo" style="width: 50px; margin-bottom: 0.5rem;" />
-        <h3 style="margin:0;">BlockVotes</h3>
+        <h3 style="margin:0;">SecureVote <br> E-Voting System</h3>
       </div>
       <nav style="flex: 1;">
         <button id="dashboardBtn" class="nav-btn">Dashboard</button>
@@ -223,7 +223,7 @@
           document.getElementById('noCandidates').style.display = 'none';
           candidates.forEach(c => {
             const imgRef = c.imageHash || c.cid || '';
-            // Check if it's a Cloudinary URL (http) or IPFS CID
+            // Check if it's an S3 URL (http) or IPFS CID
             let imgUrl = '/static/default-candidate.png';
             if (imgRef.startsWith('http')) {
               imgUrl = imgRef;
@@ -254,7 +254,7 @@
       }
     }
 
-    // Register Candidate with Cloudinary Upload
+    // Register Candidate with S3 Upload
     async function registerCandidate(event) {
       event.preventDefault();
       const btn = document.getElementById('registerBtn');
@@ -287,7 +287,7 @@
           UI.showLoader('Uploading Image...');
           const fd = new FormData();
           fd.append('file', fileInput.files[0]);
-          const uploadResp = await fetch('/api/upload/cloudinary', { method: 'POST', body: fd });
+          const uploadResp = await fetch('/api/upload/s3', { method: 'POST', body: fd });
           const uploadJson = await uploadResp.json();
 
           if (!uploadResp.ok || uploadJson.status === 'error') {
