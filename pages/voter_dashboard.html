@@ -27,6 +27,77 @@
             gap: 1rem;
         }
 
+        .user-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            position: relative;
+        }
+
+        .desktop-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .hamburger-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            padding: 0.5rem;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            padding: 1rem;
+            flex-direction: column;
+            gap: 0.75rem;
+            min-width: 220px;
+            z-index: 100;
+            margin-top: 0.5rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .dropdown-menu.show {
+            display: flex;
+        }
+
+        #voterEmailMobile {
+            display: none;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--glass-border);
+            margin-bottom: 0.25rem;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+
+        @media (max-width: 768px) {
+
+            .desktop-buttons,
+            .desktop-email {
+                display: none !important;
+            }
+
+            .hamburger-btn {
+                display: flex !important;
+                color: #fff;
+            }
+
+            #voterEmailMobile {
+                display: block !important;
+            }
+        }
+
         .section-title {
             font-size: 1.5rem;
             margin-bottom: 1rem;
@@ -117,11 +188,32 @@
                 <img src="/static/logo3.png" alt="Logo" style="width: 40px; margin-right: 1rem;" />
                 <h2 style="margin:0;">Voter Dashboard</h2>
             </div>
-            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;">
-                <span id="voterEmailDisplay" style="color: var(--text-muted); word-break: break-all;"></span>
-                <button id="changePwdBtn" class="btn btn-sm btn-outline" onclick="openChangePasswordModal()">Change
-                    Password</button>
-                <button id="logoutBtn" class="btn btn-sm btn-outline">Logout</button>
+            <div class="user-actions">
+                <span id="voterEmailDisplay" class="desktop-email"
+                    style="color: var(--text-muted); word-break: break-all;"></span>
+
+                <div class="desktop-buttons">
+                    <button id="changePwdBtn" class="btn btn-sm btn-outline" onclick="openChangePasswordModal()">Change
+                        Password</button>
+                    <button id="logoutBtn" class="btn btn-sm btn-outline">Logout</button>
+                </div>
+
+                <button class="hamburger-btn" onclick="toggleMenu()">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+
+                <div id="mobileMenu" class="dropdown-menu">
+                    <span id="voterEmailMobile" style="color: var(--text-muted);"></span>
+                    <button class="btn btn-sm btn-outline" onclick="openChangePasswordModal(); toggleMenu();"
+                        style="width: 100%;">Change Password</button>
+                    <button class="btn btn-sm btn-outline" onclick="document.getElementById('logoutBtn').click()"
+                        style="width: 100%;">Logout</button>
+                </div>
             </div>
         </div>
 
@@ -173,6 +265,20 @@
         }
 
         document.getElementById('voterEmailDisplay').textContent = decodeURIComponent(voterEmail || 'Voter');
+        const mobileEmailDisplay = document.getElementById('voterEmailMobile');
+        if (mobileEmailDisplay) mobileEmailDisplay.textContent = decodeURIComponent(voterEmail || 'Voter');
+
+        function toggleMenu() {
+            document.getElementById('mobileMenu').classList.toggle('show');
+        }
+
+        document.addEventListener('click', function (event) {
+            const menu = document.getElementById('mobileMenu');
+            const hamburger = document.querySelector('.hamburger-btn');
+            if (menu && hamburger && menu.classList.contains('show') && !menu.contains(event.target) && !hamburger.contains(event.target)) {
+                menu.classList.remove('show');
+            }
+        });
 
         document.getElementById('logoutBtn').addEventListener('click', () => {
             Cookies.remove('voter_id');
