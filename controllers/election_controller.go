@@ -823,7 +823,17 @@ func GetElectionInfo(w http.ResponseWriter, r *http.Request) {
 	// Robust case-insensitive lookup to handle checksummed vs lowercase address mismatches
 	addrRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(rawAddr) + "$", "$options": "i"}
 
-	votersCount, _ := voterCollection.CountDocuments(ctx, bson.M{"registrations.election_address": addrRegex})
+	// Use an extremely robust $or filter to handle potential schema inconsistencies
+	// (e.g. array of objects vs array of strings, snake_case vs camelCase)
+	votersFilter := bson.M{"$or": []bson.M{
+		{"registrations.election_address": addrRegex},
+		{"registrations.electionAddress": addrRegex},
+		{"registrations": addrRegex},
+		{"election_address": addrRegex},
+		{"electionAddress": addrRegex},
+	}}
+
+	votersCount, _ := voterCollection.CountDocuments(ctx, votersFilter)
 	candidatesCount, _ := candidateCollection.CountDocuments(ctx, bson.M{"electionAddress": addrRegex})
 
 	var meta ElectionMetadata
