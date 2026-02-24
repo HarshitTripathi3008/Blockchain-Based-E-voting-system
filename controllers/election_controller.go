@@ -816,15 +816,18 @@ func GetElectionInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = common.HexToAddress(rawAddr)
 
-	// Use MongoDB for all dashboard stats to completely eliminate Alchemy rate-limit DDOS vectors
+	// Use MongoDB for all dashboard stats with case-insensitive address matching
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	votersCount, _ := voterCollection.CountDocuments(ctx, bson.M{"registrations.election_address": rawAddr})
-	candidatesCount, _ := candidateCollection.CountDocuments(ctx, bson.M{"electionAddress": rawAddr})
+	// Robust case-insensitive lookup to handle checksummed vs lowercase address mismatches
+	addrRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(rawAddr) + "$", "$options": "i"}
+
+	votersCount, _ := voterCollection.CountDocuments(ctx, bson.M{"registrations.election_address": addrRegex})
+	candidatesCount, _ := candidateCollection.CountDocuments(ctx, bson.M{"electionAddress": addrRegex})
 
 	var meta ElectionMetadata
-	_ = metadataCollection.FindOne(ctx, bson.M{"election_address": rawAddr}).Decode(&meta)
+	_ = metadataCollection.FindOne(ctx, bson.M{"election_address": addrRegex}).Decode(&meta)
 
 	respondJSON(w, http.StatusOK, BlockchainResponse{
 		Status:  "success",
