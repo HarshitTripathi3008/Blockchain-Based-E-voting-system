@@ -23,6 +23,8 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
 
         .section-title {
@@ -43,11 +45,18 @@
             justify-content: space-between;
             align-items: center;
             transition: transform 0.2s;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
 
         .election-card:hover {
             transform: translateY(-2px);
             border-color: var(--primary-color);
+        }
+
+        .election-info {
+            flex: 1;
+            min-width: 0;
         }
 
         .election-info h3 {
@@ -60,6 +69,8 @@
             margin: 0.2rem 0;
             color: var(--text-muted);
             font-size: 0.9rem;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
         .status-badge {
@@ -106,10 +117,10 @@
                 <img src="/static/logo3.png" alt="Logo" style="width: 40px; margin-right: 1rem;" />
                 <h2 style="margin:0;">Voter Dashboard</h2>
             </div>
-            <div>
-                <span id="voterEmailDisplay" style="color: var(--text-muted); margin-right: 1rem;"></span>
-                <button id="changePwdBtn" class="btn btn-sm btn-outline" style="margin-right: 0.5rem;"
-                    onclick="openChangePasswordModal()">Change Password</button>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;">
+                <span id="voterEmailDisplay" style="color: var(--text-muted); word-break: break-all;"></span>
+                <button id="changePwdBtn" class="btn btn-sm btn-outline" onclick="openChangePasswordModal()">Change
+                    Password</button>
                 <button id="logoutBtn" class="btn btn-sm btn-outline">Logout</button>
             </div>
         </div>
@@ -210,7 +221,7 @@
                         div.innerHTML = `
                         <div class="election-info">
                             <h3>${name}</h3>
-                            <p style="font-family:monospace; opacity:0.7;">${reg.election_address}</p>
+                            <p style="font-family:monospace; opacity:0.7; word-break: break-all;">${reg.election_address}</p>
                             <span class="status-badge ${statusClass}">Status: ${reg.status}</span>
                         </div>
                         <div>
@@ -239,7 +250,7 @@
                         div.innerHTML = `
                         <div class="election-info">
                             <h3>${e.election_name || 'Unnamed Election'}</h3>
-                            <p style="font-family:monospace; opacity:0.7;">${e.election_address}</p>
+                            <p style="font-family:monospace; opacity:0.7; word-break: break-all;">${e.election_address}</p>
                             <p>Ends: ${new Date(e.end_date).toLocaleDateString()}</p>
                         </div>
                         <div>
