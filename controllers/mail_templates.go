@@ -96,7 +96,7 @@ func GenerateWelcomeEmail(name, email, password, electionName string) string {
 		<p>For your security, we strongly recommend that you change your password immediately after your first login.</p>
 		
 		<div style="text-align: center;">
-			<a href="https://SecureVote.in/voter_login.html" class="btn">Login to Vote &rarr;</a>
+			<a href="https://blockvotes.in/voter_login.html" class="btn">Login to Vote &rarr;</a>
 		</div>
 	`, name, electionName, email, password)
 
@@ -117,7 +117,7 @@ func GenerateForgotPasswordEmail(name, newPassword string) string {
 		<p>Please log in with this new password and change it from your dashboard immediately.</p>
 		
 		<div style="text-align: center;">
-			<a href="https://SecureVote.in/voter_login.html" class="btn">Login Here &rarr;</a>
+			<a href="https://blockvotes.in/voter_login.html" class="btn">Login Here &rarr;</a>
 		</div>
 	`, name, newPassword)
 

@@ -126,7 +126,7 @@
     .developer-card {
       background: var(--glass-bg);
       border: 1px solid var(--glass-border);
-      padding: 2.5rem 2rem;
+      padding: 2.5rem 1rem;
       border-radius: 16px;
       text-align: center;
       transition: transform 0.3s ease, background 0.3s ease;
@@ -148,15 +148,33 @@
     }
 
     .developer-name {
-      font-size: 1.3rem;
+      font-size: 1.15rem;
       margin-bottom: 0.5rem;
       color: #fff;
+      white-space: nowrap;
     }
 
     .developer-info {
       color: var(--text-muted);
       font-size: 0.95rem;
       margin-bottom: 0.25rem;
+    }
+
+    .linkedin-btn {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 16px;
+      background-color: #0077b5;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: 0.3s ease;
+    }
+
+    .linkedin-btn:hover {
+      background-color: #005582;
+      transform: scale(1.05);
     }
   </style>
 </head>
@@ -200,30 +218,55 @@
     <section class="developers-section">
       <h2 class="developers-title">Developed By</h2>
       <div class="developers-grid">
+
         <div class="developer-card">
-          <img src="/static/Harshit_prof.jpeg" alt="Developer 1" class="developer-img">
+          <img src="/static/Harshit_prof.jpeg" alt="Harshit Tripathi" class="developer-img">
           <h3 class="developer-name">Harshit Tripathi</h3>
           <p class="developer-info">Final Year</p>
           <p class="developer-info">2022 - 2026</p>
+
+          <a href="https://www.linkedin.com/in/harshit-tripathi-474577259" target="_blank" rel="noopener noreferrer"
+            class="linkedin-btn">
+            View LinkedIn
+          </a>
         </div>
+
         <div class="developer-card">
-          <img src="/static/Harshit Pandey Prof.jpeg" alt="Developer 2" class="developer-img">
+          <img src="/static/Harshit Pandey Prof.jpeg" alt="Harshit Pandey" class="developer-img">
           <h3 class="developer-name">Harshit Pandey</h3>
           <p class="developer-info">Final Year</p>
           <p class="developer-info">2022 - 2026</p>
+
+          <a href="https://www.linkedin.com/in/harshit-pandey-8b37173b2" target="_blank" rel="noopener noreferrer"
+            class="linkedin-btn">
+            View LinkedIn
+          </a>
         </div>
+
         <div class="developer-card">
-          <img src="/static/Amitesh Prof.jpeg" alt="Developer 3" class="developer-img">
+          <img src="/static/Amitesh Prof.jpeg" alt="Amitesh Singh Patel" class="developer-img">
           <h3 class="developer-name">Amitesh Singh Patel</h3>
           <p class="developer-info">Final Year</p>
           <p class="developer-info">2022 - 2026</p>
+
+          <a href="https://www.linkedin.com/in/amitesh-singh-485669269" target="_blank" rel="noopener noreferrer"
+            class="linkedin-btn">
+            View LinkedIn
+          </a>
         </div>
+
         <div class="developer-card">
-          <img src="/static/Vishnu Prof.jpeg" alt="Developer 4" class="developer-img">
+          <img src="/static/Vishnu Prof.jpeg" alt="Vishnu Kumar Pandey" class="developer-img">
           <h3 class="developer-name">Vishnu Kumar Pandey</h3>
           <p class="developer-info">Final Year</p>
           <p class="developer-info">2022 - 2026</p>
+
+          <a href="https://www.linkedin.com/in/vishnu-kumar-pandey-586417229" target="_blank" rel="noopener noreferrer"
+            class="linkedin-btn">
+            View LinkedIn
+          </a>
         </div>
+
       </div>
     </section>
   </main>

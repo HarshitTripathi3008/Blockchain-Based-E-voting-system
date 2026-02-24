@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Election Auditor Dashboard - SecureVote -- E-Voting System</title>
+  <link rel="icon" type="image/png" href="/static/logo3.png">
   <link rel="stylesheet" href="/static/css/global.css">
   <link
     href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap"
@@ -13,8 +14,9 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="/static/js/ui.js?v=3"></script>
   <style>
+    /* --- CORE VARIABLES & RESET --- */
     :root {
-      --glass-bg: rgba(23, 23, 33, 0.7);
+      --glass-bg: rgba(23, 23, 33, 0.95);
       --glass-border: rgba(255, 255, 255, 0.08);
       --primary: #6c5ce7;
       --accent: #00cec9;
@@ -29,15 +31,18 @@
         radial-gradient(circle at 85% 30%, rgba(0, 206, 201, 0.15) 0%, transparent 25%);
       color: var(--text-main);
       font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
       overflow-x: hidden;
     }
 
     .layout {
       display: flex;
       min-height: 100vh;
+      position: relative;
     }
 
-    /* Sidebar */
+    /* --- SIDEBAR --- */
     .sidebar {
       width: 260px;
       background: var(--glass-bg);
@@ -49,7 +54,9 @@
       position: sticky;
       top: 0;
       height: 100vh;
-      z-index: 10;
+      z-index: 100;
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      /* Smooth slide */
     }
 
     .brand {
@@ -69,7 +76,6 @@
       font-family: 'Outfit', sans-serif;
       font-weight: 700;
       font-size: 1.25rem;
-      letter-spacing: -0.02em;
       margin: 0;
       background: linear-gradient(135deg, #fff 0%, #a29bfe 100%);
       -webkit-background-clip: text;
@@ -107,11 +113,98 @@
       box-shadow: 0 4px 15px rgba(108, 92, 231, 0.1);
     }
 
-    /* Main Content */
+    /* --- HAMBURGER BUTTON (Spin & Morph Animation) --- */
+    .hamburger-btn {
+      display: none;
+      /* Hidden on desktop */
+      position: absolute;
+      top: 1.5rem;
+      left: 1.5rem;
+      z-index: 200;
+      background: rgba(30, 30, 40, 0.8);
+      border: 1px solid var(--glass-border);
+      border-radius: 50%;
+      /* Circular */
+      padding: 0;
+      cursor: pointer;
+      width: 48px;
+      height: 48px;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transition: background 0.3s;
+    }
+
+    .hamburger-btn:hover {
+      background: rgba(40, 40, 55, 0.95);
+    }
+
+    .hamburger-icon {
+      width: 24px;
+      height: 18px;
+      /* Height of the 3 lines area */
+      position: relative;
+      transform: rotate(0deg);
+      transition: .5s ease-in-out;
+      /* The spin speed */
+    }
+
+    .hamburger-icon span {
+      display: block;
+      position: absolute;
+      height: 2px;
+      width: 100%;
+      background: #fff;
+      border-radius: 9px;
+      opacity: 1;
+      left: 0;
+      transform: rotate(0deg);
+      transition: .25s ease-in-out;
+    }
+
+    /* Initial Positioning */
+    .hamburger-icon span:nth-child(1) {
+      top: 0px;
+    }
+
+    .hamburger-icon span:nth-child(2) {
+      top: 8px;
+    }
+
+    .hamburger-icon span:nth-child(3) {
+      top: 16px;
+    }
+
+    /* --- ACTIVE ANIMATION STATES --- */
+    /* 1. Spin the whole icon 135deg */
+    .hamburger-btn.active .hamburger-icon {
+      transform: rotate(135deg);
+    }
+
+    /* 2. Top line forms one leg of X */
+    .hamburger-btn.active .hamburger-icon span:nth-child(1) {
+      top: 8px;
+      transform: rotate(90deg);
+    }
+
+    /* 3. Middle line flies out to the left */
+    .hamburger-btn.active .hamburger-icon span:nth-child(2) {
+      opacity: 0;
+      left: -60px;
+    }
+
+    /* 4. Bottom line forms other leg of X */
+    .hamburger-btn.active .hamburger-icon span:nth-child(3) {
+      top: 8px;
+      transform: rotate(0deg);
+    }
+
+    /* --- MAIN CONTENT --- */
     .main-content {
       flex: 1;
       padding: 2.5rem 3rem;
       overflow-y: auto;
+      height: 100vh;
     }
 
     .header-section {
@@ -124,7 +217,7 @@
     .header-section h2 {
       font-family: 'Outfit', sans-serif;
       font-size: 2rem;
-      margin-bottom: 0.5rem;
+      margin: 0 0 0.5rem 0;
     }
 
     .status-badge {
@@ -140,6 +233,7 @@
       font-weight: 600;
     }
 
+    /* --- ELECTION CARD --- */
     .election-card {
       background: linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
       border: 1px solid var(--glass-border);
@@ -148,6 +242,12 @@
       margin-bottom: 2.5rem;
       position: relative;
       overflow: hidden;
+    }
+
+    .election-card-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
     }
 
     .election-card::before {
@@ -174,11 +274,6 @@
       background: rgba(30, 30, 40, 0.6);
       border: 1px solid var(--glass-border);
       transition: transform 0.2s;
-    }
-
-    .stat-card:hover {
-      transform: translateY(-2px);
-      background: rgba(30, 30, 40, 0.8);
     }
 
     .stat-val {
@@ -213,18 +308,12 @@
       position: relative;
     }
 
-    .chart-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-    }
-
     .chart-title {
       font-family: 'Outfit', sans-serif;
       font-size: 1.1rem;
       font-weight: 600;
       color: #dfe6e9;
+      margin-bottom: 1.5rem;
     }
 
     /* Loader Pulse */
@@ -253,17 +342,133 @@
         box-shadow: 0 0 0 0 rgba(255, 118, 117, 0);
       }
     }
+
+    /* =========================================
+       MOBILE RESPONSIVENESS (Max-Width 768px)
+       ========================================= */
+    @media (max-width: 768px) {
+
+      /* 1. Show Hamburger */
+      .hamburger-btn {
+        display: flex;
+      }
+
+      .layout {
+        flex-direction: column;
+      }
+
+      /* 2. Sidebar Logic: Hidden by default, absolute on open */
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: auto;
+        padding-top: 5rem;
+        /* Space for hamburger */
+        transform: translateY(-100%);
+        /* Hidden top */
+        z-index: 90;
+        border-bottom: 1px solid var(--glass-border);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      }
+
+      .sidebar.active {
+        transform: translateY(0);
+      }
+
+      /* Slide down */
+
+      .brand {
+        display: none;
+      }
+
+      /* Hide logo inside sidebar */
+
+      /* Main Content Adjustments */
+      .main-content {
+        padding: 5rem 1.5rem 2rem 1.5rem;
+      }
+
+      .header-section {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+
+      /* 3. Current Election Dashboard: Reordering */
+      .election-card-content {
+        flex-direction: column;
+        width: 100%;
+      }
+
+      /* Move Contract Address to Top using Order */
+      .election-card-content>div:nth-child(2) {
+        order: -1;
+        /* VISUAL REORDERING */
+        width: 100%;
+        margin-bottom: 1rem;
+        text-align: left;
+      }
+
+      /* Make the address box full width */
+      .election-card-content>div:nth-child(2)>div {
+        background: rgba(0, 0, 0, 0.5);
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .election-card-content>div:nth-child(1) {
+        width: 100%;
+      }
+
+      #electionName {
+        font-size: 2rem;
+        word-wrap: break-word;
+      }
+
+      /* Stat Grid */
+      .stat-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+
+      /* 4. Charts Vertical Layout & 90% Width */
+      .charts-row {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2rem;
+      }
+
+      .chart-container {
+        width: 90%;
+        /* Covers nearly full width with padding */
+        margin: 0 auto;
+      }
+    }
   </style>
 </head>
 
 <body>
+  <button id="hamburger" class="hamburger-btn" onclick="toggleMobileMenu()" aria-label="Toggle Menu">
+    <div class="hamburger-icon">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+  </button>
+
   <div class="layout">
-    <aside class="sidebar">
+    <aside id="sidebar" class="sidebar">
       <div class="brand">
         <img src="/static/logo3.png" alt="Logo" />
         <h3>SecureVote <br> E-Voting System</h3>
       </div>
       <nav style="flex: 1;">
+
         <button id="dashboardBtn" class="nav-btn active">
           <span>&#128202;</span> Dashboard
         </button>
@@ -276,32 +481,37 @@
     <main class="main-content">
       <div class="header-section">
         <div>
-          <h2>Auditor Dashboard</h2>
-          <p style="color: var(--text-muted);">Real-time independent monitoring of election integrity</p>
+          <h2>Observer Dashboard</h2>
+          <p style="color: var(--text-muted);">Real-time independent monitoring</p>
         </div>
         <div class="status-badge">
           <div class="live-dot"></div>
-          LIVE MONITORING
+          LIVE
         </div>
       </div>
 
       <div class="election-card">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div class="election-card-content">
           <div>
             <h5
               style="color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.1em;">
-              Current Election</h5>
+              Current Election
+            </h5>
             <h1 id="electionName"
               style="font-family: 'Outfit', sans-serif; font-size: 2.5rem; margin-bottom: 0.5rem; background: linear-gradient(90deg, #fff, #b2bec3); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
-              â€”</h1>
-            <p id="electionDesc" style="color: var(--text-muted); max-width: 600px;">Loading details...</p>
+              —
+            </h1>
+            <p id="electionDesc" style="color: var(--text-muted);">Loading details...</p>
           </div>
+
           <div style="text-align: right;">
             <div
               style="background: rgba(0,0,0,0.3); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--glass-border);">
               <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">CONTRACT ADDRESS</div>
               <div id="electionAddrDisplay"
-                style="font-family: 'Roboto Mono', monospace; font-size: 0.9rem; color: #a29bfe;">0x...</div>
+                style="font-family: 'Roboto Mono', monospace; font-size: 0.9rem; color: #a29bfe; word-break: break-all;">
+                0x...
+              </div>
             </div>
           </div>
         </div>
@@ -324,15 +534,11 @@
 
       <div class="charts-row">
         <div class="chart-container">
-          <div class="chart-header">
-            <div class="chart-title">Candidate Performance</div>
-          </div>
+          <div class="chart-title">Candidate Performance</div>
           <canvas id="resultsChart"></canvas>
         </div>
         <div class="chart-container">
-          <div class="chart-header">
-            <div class="chart-title">Voter Turnout</div>
-          </div>
+          <div class="chart-title">Voter Turnout</div>
           <canvas id="turnoutChart"></canvas>
         </div>
       </div>
@@ -341,6 +547,15 @@
   </div>
 
   <script>
+    // --- Mobile Menu Toggle ---
+    function toggleMobileMenu() {
+      const sidebar = document.getElementById('sidebar');
+      const btn = document.getElementById('hamburger');
+
+      sidebar.classList.toggle('active');
+      btn.classList.toggle('active');
+    }
+
     let resultsChart = null;
     let turnoutChart = null;
 
@@ -425,7 +640,7 @@
             borderColor: '#a29bfe',
             borderWidth: 1,
             borderRadius: 6,
-            barThickness: 30
+            barPercentage: 0.6
           }]
         },
         options: {
@@ -467,9 +682,9 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          cutout: '75%',
+          cutout: '70%',
           plugins: {
-            legend: { position: 'bottom', labels: { color: '#b2bec3', usePointStyle: true } }
+            legend: { position: 'bottom', labels: { color: '#b2bec3', usePointStyle: true, padding: 20 } }
           }
         }
       });
@@ -477,7 +692,7 @@
 
     document.getElementById('logoutBtn').addEventListener('click', () => {
       Cookies.remove('address');
-      window.location.href = '/observer_login.html';
+      window.location.href = 'observer_login.html';
     });
 
     // Auto-refresh every 30s
