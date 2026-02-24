@@ -61,6 +61,12 @@
       gap: 1rem;
     }
 
+    .observer-btn {
+      grid-column: span 2;
+      margin-top: 0.5rem;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
     @media (max-width: 600px) {
       .hero-title {
         font-size: 2rem;
@@ -68,6 +74,10 @@
 
       .action-buttons {
         grid-template-columns: 1fr;
+      }
+
+      .observer-btn {
+        grid-column: span 1;
       }
     }
 
@@ -190,8 +200,7 @@
       <div class="action-buttons">
         <a href="company_login.html" class="btn btn-primary">Election Commission</a>
         <a href="voter_login.html" class="btn btn-outline">Voter Login</a>
-        <a href="observer_login.html" class="btn btn-outline"
-          style="grid-column: span 2; margin-top: 0.5rem; border-color: rgba(255,255,255,0.2);">Observer Access</a>
+        <a href="observer_login.html" class="btn btn-outline observer-btn">Observer Access</a>
       </div>
     </div>
 

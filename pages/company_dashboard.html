@@ -143,6 +143,26 @@
       background: rgba(253, 203, 110, 0.2);
       color: #ffeaa7;
     }
+
+    /* Action buttons responsive layout */
+    .action-panel-btns {
+      display: flex;
+      gap: 1rem;
+    }
+
+    @media (max-width: 600px) {
+      .action-panel-btns {
+        flex-wrap: wrap;
+      }
+
+      .action-panel-btns button {
+        flex: 1 1 calc(50% - 0.5rem);
+      }
+
+      #endElection {
+        flex: 1 1 100% !important;
+      }
+    }
   </style>
 </head>
 
@@ -282,7 +302,7 @@
           </div>
         </div>
 
-        <div style="display: flex; gap: 1rem;">
+        <div class="action-panel-btns">
           <button id="viewCandidates" class="btn btn-outline">View Candidates</button>
           <button id="manageVoters" class="btn btn-outline">Manage Voters</button>
           <button id="endElection" class="btn" style="background: var(--error-color); color: white; border: none;">End
@@ -406,7 +426,9 @@
       UI.showLoader('Loading Stats...');
       const encoded = encodeURIComponent(addr);
       try {
-        // 1. Details from contract (Name/Desc)
+        let totalVotersCount = 0;
+
+        // 1. Details from contract (Name/Desc/Stats)
         const respDetails = await fetch(`/api/elections/${encoded}/details`, { headers: { 'Accept': 'application/json' } });
         if (respDetails.ok) {
           const body = await UI.safeJson(respDetails);
@@ -430,6 +452,8 @@
 
           document.getElementById('electionName').textContent = body?.data?.election_name || "Unnamed election";
           document.getElementById('electionDesc').textContent = body?.data?.election_desc || "";
+
+          totalVotersCount = parseInt(body?.data?.voters_count || "0", 10);
         }
 
         // 2. Candidates
@@ -441,15 +465,8 @@
         }
         document.getElementById('candidatesCount').textContent = String(candidates.length);
 
-        // 3. Voters
-        const respVoters = await fetch(`/api/elections/${encoded}/voters`, { headers: { 'Accept': 'application/json' } });
-        let voters = [];
-        if (respVoters.ok) {
-          const vbody = await UI.safeJson(respVoters);
-          // Ensure we handle the new unified format
-          voters = vbody?.voters || vbody || [];
-        }
-        document.getElementById('votersCount').textContent = String(voters.length);
+        // 3. Voters (OOM Safe - Do not fetch the 2600+ array just for length)
+        document.getElementById('votersCount').textContent = String(totalVotersCount);
 
         // 4. Votes
         // Count from candidates for now
@@ -457,7 +474,7 @@
         document.getElementById('votesCount').textContent = String(totalVotes);
 
         renderChart(candidates);
-        renderTurnoutChart(totalVotes, voters.length);
+        renderTurnoutChart(totalVotes, totalVotersCount);
 
       } catch (err) {
         console.warn('Failed to load dashboard', err);

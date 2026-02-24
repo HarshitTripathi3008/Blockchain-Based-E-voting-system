@@ -138,6 +138,18 @@
       margin-bottom: 1rem;
       display: inline-block;
     }
+
+    /* OTP Container */
+    .otp-container {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    @media (max-width: 480px) {
+      .otp-container {
+        flex-direction: column;
+      }
+    }
   </style>
 </head>
 
@@ -256,7 +268,7 @@
         <h4 style="margin-bottom:0.5rem; color:var(--accent-color);">Security Verification</h4>
         <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:1rem;">Review your selection above. To
           confirm, enter the OTP sent to your email.</p>
-        <div style="display: flex; gap: 0.5rem;">
+        <div class="otp-container">
           <input id="voteOtpInput" type="text" placeholder="Enter OTP"
             style="flex:1; padding:0.8rem; border-radius:8px; border:1px solid var(--glass-border); background:rgba(0,0,0,0.2); color:#fff; font-size:1rem; text-align:center; letter-spacing:2px;">
           <button id="sendVoteOtpBtn" class="btn btn-outline" style="white-space:nowrap;">Send OTP</button>
@@ -301,29 +313,17 @@
       document.getElementById('addressDisplay').textContent = address;
 
       try {
-        // Details
+        // Details Server yields cached string quantities to prevent OOM
         const resp = await fetch(`/api/elections/${encodeURIComponent(address)}/details`, { headers: { 'Accept': 'application/json' } });
         if (resp.ok) {
           const data = await UI.safeJson(resp);
           document.getElementById('election-name').textContent = data?.data?.election_name || 'Election';
           document.getElementById('election-desc').textContent = data?.data?.election_desc || '';
+          document.getElementById('votersCount').textContent = data?.data?.voters_count || '-';
+          document.getElementById('candidatesCount').textContent = data?.data?.candidates_count || '-';
         }
 
-        // Stats
-        const respCands = await fetch(`/api/elections/${encodeURIComponent(address)}/candidates`, { headers: { 'Accept': 'application/json' } });
-        if (respCands.ok) {
-          const cData = await UI.safeJson(respCands);
-          const count = (cData.candidates || cData || []).length;
-          document.getElementById('candidatesCount').textContent = count;
-        }
-
-        const respVoters = await fetch(`/api/elections/${encodeURIComponent(address)}/voters`, { headers: { 'Accept': 'application/json' } });
-        if (respVoters.ok) {
-          const vData = await UI.safeJson(respVoters);
-          const count = (vData.voters || vData || []).length;
-          document.getElementById('votersCount').textContent = count;
-        }
-
+        // Removed heavy array fetches that caused Browser/Server OOM crashes under Extreme Load
       } catch (err) {
         console.error(err);
       }

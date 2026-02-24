@@ -814,77 +814,26 @@ func GetElectionInfo(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid election address or unresolved email")
 		return
 	}
-	electionAddr := common.HexToAddress(rawAddr)
+	_ = common.HexToAddress(rawAddr)
 
-	client, err := getClient()
-	if err != nil {
-		log.Printf("GetElectionInfo: getClient error: %v", err)
-		respondError(w, http.StatusInternalServerError, "failed to connect to ethereum node")
-		return
-	}
-	defer client.Close()
+	// Use MongoDB for all dashboard stats to completely eliminate Alchemy rate-limit DDOS vectors
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	// verify code at address
-	code, cerr := client.CodeAt(context.Background(), electionAddr, nil)
-	if cerr != nil {
-		log.Printf("GetElectionInfo: CodeAt error for %s: %v", rawAddr, cerr)
-		respondError(w, http.StatusInternalServerError, "failed to inspect contract code")
-		return
-	}
-	if len(code) == 0 {
-		log.Printf("GetElectionInfo: no contract code at address %s", rawAddr)
-		respondError(w, http.StatusBadRequest, "no contract code at given address")
-		return
-	}
+	votersCount, _ := voterCollection.CountDocuments(ctx, bson.M{"registrations.election_address": rawAddr})
+	candidatesCount, _ := candidateCollection.CountDocuments(ctx, bson.M{"electionAddress": rawAddr})
 
-	contract, err := bindings.NewElection(electionAddr, client)
-	if err != nil {
-		log.Printf("GetElectionInfo: binding error for %s: %v", rawAddr, err)
-		respondError(w, http.StatusInternalServerError, "failed to bind to election contract")
-		return
-	}
-
-	callOpts := &bind.CallOpts{Context: r.Context(), Pending: false}
-
-	votersCount, err := contract.GetNumOfVoters(callOpts)
-	if err != nil {
-		log.Printf("GetElectionInfo: GetNumOfVoters error for %s: %v", rawAddr, err)
-		respondError(w, http.StatusInternalServerError, "failed to read voters count")
-		return
-	}
-
-	candidatesCount, err := contract.GetNumOfCandidates(callOpts)
-	if err != nil {
-		log.Printf("GetElectionInfo: GetNumOfCandidates error for %s: %v", rawAddr, err)
-		respondError(w, http.StatusInternalServerError, "failed to read candidates count")
-		return
-	}
-
-	electionName, err := contract.ElectionName(callOpts)
-	if err != nil {
-		log.Printf("GetElectionInfo: ElectionName error for %s: %v", rawAddr, err)
-		respondError(w, http.StatusInternalServerError, "failed to read election name")
-		return
-	}
-
-	electionDesc, err := contract.ElectionDescription(callOpts)
-	if err != nil {
-		log.Printf("GetElectionInfo: ElectionDescription error for %s: %v", rawAddr, err)
-		respondError(w, http.StatusInternalServerError, "failed to read election description")
-		return
-	}
-
-	// Backfill/Update Metadata with name and desc from chain
-	go EnsureMetadata(rawAddr, electionName, electionDesc)
+	var meta ElectionMetadata
+	_ = metadataCollection.FindOne(ctx, bson.M{"election_address": rawAddr}).Decode(&meta)
 
 	respondJSON(w, http.StatusOK, BlockchainResponse{
 		Status:  "success",
 		Message: "election info retrieved",
 		Data: map[string]interface{}{
-			"voters_count":     votersCount.String(),
-			"candidates_count": candidatesCount.String(),
-			"election_name":    electionName,
-			"election_desc":    electionDesc,
+			"voters_count":     fmt.Sprintf("%d", votersCount),
+			"candidates_count": fmt.Sprintf("%d", candidatesCount),
+			"election_name":    meta.ElectionName,
+			"election_desc":    meta.ElectionDesc,
 			"election_addr":    rawAddr,
 		},
 	})
