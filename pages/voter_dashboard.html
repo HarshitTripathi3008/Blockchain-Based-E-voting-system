@@ -23,7 +23,7 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 2rem;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             gap: 1rem;
         }
 
@@ -32,6 +32,7 @@
             align-items: center;
             gap: 1rem;
             position: relative;
+            flex-shrink: 0;
         }
 
         .desktop-buttons {
@@ -55,17 +56,17 @@
             position: absolute;
             top: 100%;
             right: 0;
-            background: var(--glass-bg);
-            backdrop-filter: blur(10px);
+            background: #000000;
             border: 1px solid var(--glass-border);
             border-radius: 8px;
             padding: 1rem;
             flex-direction: column;
             gap: 0.75rem;
-            min-width: 220px;
+            min-width: 200px;
+            max-width: calc(100vw - 2rem);
             z-index: 100;
             margin-top: 0.5rem;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.8);
         }
 
         .dropdown-menu.show {
