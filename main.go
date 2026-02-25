@@ -218,7 +218,11 @@ func buildMongoClientOptions(uri string) (*options.ClientOptions, error) {
 	if !pool.AppendCertsFromPEM(caPEM) {
 		return nil, fmt.Errorf("failed to parse certificates from %s", caFile)
 	}
-	opts.SetTLSConfig(&tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12})
+	opts.SetTLSConfig(&tls.Config{
+		RootCAs:            pool,
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: false,
+	})
 	log.Printf("[OK] DocumentDB TLS configured: %s", caFile)
 	return opts, nil
 }
