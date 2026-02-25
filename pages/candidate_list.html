@@ -224,7 +224,6 @@
           document.getElementById('noCandidates').style.display = 'none';
           candidates.forEach(c => {
             const imgRef = c.imageHash || c.cid || '';
-            // Check if it's an S3 URL (http) or IPFS CID
             let imgUrl = '/static/default-candidate.png';
             if (imgRef.startsWith('http')) {
               imgUrl = imgRef;
@@ -235,6 +234,8 @@
             const name = c.name || 'Unnamed';
             const desc = c.description || '';
             const votes = Number(c.votes || c.voteCount || 0);
+            const txHash = c.txHash || '';
+            const source = data.source || 'unknown';
 
             const card = document.createElement('div');
             card.className = 'candidate-card fade-in';
@@ -243,6 +244,10 @@
                     <img src="${imgUrl}" onerror="this.src='/static/default-candidate.png'" alt="${escapeHtml(name)}" class="candidate-img"/>
                     <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; color: #fff;">${escapeHtml(name)}</h3>
                     <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; max-height: 100px; overflow: hidden; text-overflow: ellipsis; margin-bottom:0.8rem;">${escapeHtml(desc)}</p>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.5rem; margin-top: auto;">
+                        ${txHash ? `<div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Tx: <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank" style="color: var(--accent-color);">${txHash}</a></div>` : ''}
+                        <div style="margin-top: 2px;">Source: <span style="color: ${source === 'onchain' ? 'var(--success-color)' : 'var(--warning-color)'}">${source}</span></div>
+                    </div>
                 `;
             container.appendChild(card);
           });

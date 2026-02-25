@@ -700,6 +700,7 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return success with source = "onchain"
+	log.Printf("[SUCCESS] Successfully fetched %d candidates from blockchain for %s\n", len(candidates), addrStr)
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":     "success",
 		"source":     "onchain",

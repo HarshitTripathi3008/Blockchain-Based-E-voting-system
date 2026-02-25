@@ -374,14 +374,19 @@
           if (imgRef.startsWith('http')) imgUrl = imgRef;
           else if (imgRef) imgUrl = `https://ipfs.io/ipfs/${imgRef}`;
 
+          const name = c.name || 'Unnamed';
+          const desc = c.description || '';
+          const source = data.source || 'unknown';
+
           el.innerHTML = `
                     <div style="flex-shrink:0;">
                         <img src="${imgUrl}" class="candidate-img" onerror="this.src='/static/default-candidate.png'">
                     </div>
                     <div style="flex:1;">
-                        <div style="font-weight:600; font-size:1.1rem; color:#fff;">${escapeHtml(c.name)}</div>
-                         <div style="font-size:0.9rem; color:var(--text-muted);">${escapeHtml(c.description)}</div>
+                        <div style="font-weight:600; font-size:1.1rem; color:#fff;">${escapeHtml(name)}</div>
+                         <div style="font-size:0.9rem; color:var(--text-muted);">${escapeHtml(desc)}</div>
                          ${(c.manifestoUrl || c.manifesto_url) ? `<div style="margin-top:4px;"><a href="${c.manifestoUrl || c.manifesto_url}" target="_blank" style="color:var(--accent-color); font-size:0.8rem; text-decoration:none;">&#128196; View Manifesto</a></div>` : ''}
+                         <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">Verified on Blockchain: <span style="color:${source === 'onchain' ? 'var(--success-color)' : 'var(--warning-color)'}">${source === 'onchain' ? 'YES' : 'PENDING'}</span></div>
                     </div>
                     <div style="width: 20px; height: 20px; border: 2px solid var(--text-muted); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
                         <div class="dot" style="width: 10px; height: 10px; background: var(--accent-color); border-radius: 50%; opacity: 0; transition: opacity 0.2s;"></div>
