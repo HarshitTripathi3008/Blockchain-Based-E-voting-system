@@ -258,12 +258,13 @@
     </div>
 
     <script>
-        const voterId = Cookies.get('voter_id');
-        const voterEmail = Cookies.get('voter_email');
-
-        if (!voterId) {
+        // --- Security Check ---
+        if (!Cookies.get('voter_email') || !Cookies.get('voter_id')) {
             window.location.href = 'voter_login.html';
         }
+
+        const voterId = Cookies.get('voter_id');
+        const voterEmail = Cookies.get('voter_email');
 
         document.getElementById('voterEmailDisplay').textContent = decodeURIComponent(voterEmail || 'Voter');
         const mobileEmailDisplay = document.getElementById('voterEmailMobile');

@@ -547,6 +547,11 @@
   </div>
 
   <script>
+    // --- Security Check ---
+    if (!Cookies.get('observer_mode')) {
+      window.location.href = 'observer_login.html';
+    }
+
     // --- Mobile Menu Toggle ---
     function toggleMobileMenu() {
       const sidebar = document.getElementById('sidebar');

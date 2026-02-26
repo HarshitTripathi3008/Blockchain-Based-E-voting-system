@@ -328,6 +328,11 @@
   </div>
 
   <script>
+    // --- Security Check ---
+    if (!Cookies.get('company_email')) {
+      window.location.href = 'company_login.html';
+    }
+
     // --- State & Helpers ---
     let voters = [];
     let currentEditVoterId = null;

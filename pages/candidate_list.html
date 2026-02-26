@@ -188,7 +188,10 @@
   </div>
 
   <script>
-
+    // --- Security Check ---
+    if (!Cookies.get('company_email')) {
+      window.location.href = 'company_login.html';
+    }
 
     function getElectionAddress() {
       const params = new URLSearchParams(window.location.search);

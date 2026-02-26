@@ -56,6 +56,11 @@
   </div>
 
   <script>
+    // --- Security Check ---
+    if (!Cookies.get('company_email')) {
+      window.location.href = 'company_login.html';
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
       const form = document.getElementById('createElectionForm');
       const submitButton = document.getElementById('submitButton');

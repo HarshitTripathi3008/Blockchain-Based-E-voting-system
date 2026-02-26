@@ -282,6 +282,11 @@
   </div>
 
   <script>
+    // --- Security Check ---
+    if (!Cookies.get('voter_email')) {
+      window.location.href = 'voter_login.html';
+    }
+
     // --- Utils ---
 
 
