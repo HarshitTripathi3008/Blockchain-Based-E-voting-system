@@ -107,12 +107,13 @@ func RegisterCandidate(w http.ResponseWriter, r *http.Request) {
 	}
 	defer client.Close()
 
-	auth, err := getAuth(client)
+	auth, err := getAuth()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(Response{Status: "error", Message: "Failed to create transaction signer: " + err.Error()})
 		return
 	}
+	auth.Nonce = getNextNonce(client, auth.From)
 
 	contractAddr := common.HexToAddress(req.ElectionAddress)
 	contract, err := bindings.NewElection(contractAddr, client)

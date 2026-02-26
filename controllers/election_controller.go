@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -84,39 +85,33 @@ func getClient() (*ethclient.Client, error) {
 	return client, nil
 }
 
-// getAuth creates a transact opts using ETHEREUM_PRIVATE_KEY and ETHEREUM_CHAIN_ID.
+// getAuth creates a transact opts using EVM_PRIVATE_KEY and L2_CHAIN_ID.
 // It requires a valid ethclient to fetch the current block nonce safely.
-func getAuth(client *ethclient.Client) (*bind.TransactOpts, error) {
-	priv := strings.TrimSpace(os.Getenv("ETHEREUM_PRIVATE_KEY"))
-	priv = strings.Trim(priv, `"'`)
+func getAuth() (*bind.TransactOpts, error) {
+	// 1. Get Private Key
+	priv := strings.TrimSpace(os.Getenv("EVM_PRIVATE_KEY"))
 	if priv == "" {
-		return nil, fmt.Errorf("ETHEREUM_PRIVATE_KEY not configured")
+		log.Println("DEBUG: EVM_PRIVATE_KEY is empty")
+		return nil, fmt.Errorf("EVM_PRIVATE_KEY not configured")
 	}
 
-	// remove optional 0x prefix
-	priv = strings.TrimPrefix(priv, "0x")
-
-	key, err := crypto.HexToECDSA(priv)
+	privateKey, err := crypto.HexToECDSA(priv)
 	if err != nil {
-		return nil, fmt.Errorf("invalid private key: %w", err)
+		return nil, fmt.Errorf("Invalid EVM_PRIVATE_KEY: %v", err)
 	}
 
-	chainIDStr := strings.TrimSpace(os.Getenv("ETHEREUM_CHAIN_ID"))
-	chainIDStr = strings.Trim(chainIDStr, `"'`)
-	if chainIDStr == "" {
-		chainIDStr = "1337" // default local dev
+	// 2. Get Chain ID
+	chainIDStr := strings.TrimSpace(os.Getenv("L2_CHAIN_ID"))
+	chainIDInt, err := strconv.ParseInt(chainIDStr, 10, 64)
+	if err != nil || chainIDInt == 0 {
+		chainIDInt = 80002 // Default to Amoy
 	}
-	chainID, ok := new(big.Int).SetString(chainIDStr, 10)
-	if !ok {
-		return nil, fmt.Errorf("invalid ETHEREUM_CHAIN_ID: %s", chainIDStr)
-	}
+	chainID := big.NewInt(chainIDInt)
 
-	auth, err := bind.NewKeyedTransactorWithChainID(key, chainID)
+	auth, err := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transactor: %w", err)
 	}
-
-	auth.Nonce = getNextNonce(client, auth.From)
 
 	// optional GAS_LIMIT override (env expects decimal integer)
 	if gl := strings.TrimSpace(os.Getenv("GAS_LIMIT")); gl != "" {
@@ -237,12 +232,13 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 	}
 	defer client.Close()
 
-	auth, err := getAuth(client)
+	auth, err := getAuth()
 	if err != nil {
 		log.Printf("CreateElection: getAuth error: %v", err)
 		respondError(w, http.StatusInternalServerError, "failed to create transaction signer")
 		return
 	}
+	auth.Nonce = getNextNonce(client, auth.From) // Set nonce here after client is available
 
 	// Validate factory address early
 	factoryRaw, factoryAddr, err := normalizeFactoryAddr()
@@ -402,12 +398,13 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 	}
 	defer client.Close()
 
-	auth, err := getAuth(client)
+	auth, err := getAuth()
 	if err != nil {
 		log.Printf("VoteCandidate: getAuth error: %v", err)
 		respondError(w, http.StatusInternalServerError, "failed to create transaction signer")
 		return
 	}
+	auth.Nonce = getNextNonce(client, auth.From)
 
 	contractAddr := common.HexToAddress(addrNorm)
 	// check contract code present
