@@ -159,7 +159,7 @@ func AuthenticateCompany(w http.ResponseWriter, r *http.Request) {
 
 	// Try to find deployed election address from the factory contract (optional)
 	electionAddrHex := ""
-	factoryAddrStr := os.Getenv("FACTORY_CONTRACT_ADDRESS")
+	factoryAddrStr := os.Getenv("L2_FACTORY_CONTRACT_ADDRESS")
 	if factoryAddrStr != "" {
 		// getClient is defined in election_controller.go and is in the same package
 		client, err := getClient()

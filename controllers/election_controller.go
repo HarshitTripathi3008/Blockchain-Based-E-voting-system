@@ -165,22 +165,17 @@ func getNextNonce(client *ethclient.Client, address common.Address) *big.Int {
 
 // normalizeFactoryAddr returns a validated, 0x-prefixed factory address string and the parsed common.Address.
 func normalizeFactoryAddr() (string, common.Address, error) {
-	raw := strings.TrimSpace(os.Getenv("FACTORY_CONTRACT_ADDRESS"))
+	raw := strings.TrimSpace(os.Getenv("L2_FACTORY_CONTRACT_ADDRESS"))
 	raw = strings.Trim(raw, `"'`)
 	if raw == "" {
-		// fallback key for convenience
-		raw = strings.TrimSpace(os.Getenv("FACTORY_ADDRESS"))
-		raw = strings.Trim(raw, `"'`)
-	}
-	if raw == "" {
-		return "", common.Address{}, fmt.Errorf("FACTORY_CONTRACT_ADDRESS not set")
+		return "", common.Address{}, fmt.Errorf("L2_FACTORY_CONTRACT_ADDRESS not set")
 	}
 	// if address is 40 hex chars without 0x, add prefix
 	if len(raw) == 40 && !strings.HasPrefix(raw, "0x") {
 		raw = "0x" + raw
 	}
 	if !common.IsHexAddress(raw) {
-		return raw, common.Address{}, fmt.Errorf("FACTORY_CONTRACT_ADDRESS is not a valid hex address: %q", raw)
+		return raw, common.Address{}, fmt.Errorf("L2_FACTORY_CONTRACT_ADDRESS is not a valid hex address: %q", raw)
 	}
 	return raw, common.HexToAddress(raw), nil
 }
@@ -244,8 +239,8 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 	// Validate factory address early
 	factoryRaw, factoryAddr, err := normalizeFactoryAddr()
 	if err != nil {
-		log.Printf("CreateElection: invalid FACTORY_CONTRACT_ADDRESS: %v", err)
-		respondError(w, http.StatusInternalServerError, "FACTORY_CONTRACT_ADDRESS not set or invalid")
+		log.Printf("CreateElection: invalid L2_FACTORY_CONTRACT_ADDRESS: %v", err)
+		respondError(w, http.StatusInternalServerError, "L2_FACTORY_CONTRACT_ADDRESS not set or invalid")
 		return
 	}
 
@@ -258,7 +253,7 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(code) == 0 {
 		log.Printf("CreateElection: no contract code at factory address %s", factoryRaw)
-		respondError(w, http.StatusInternalServerError, "no contract code at configured FACTORY_CONTRACT_ADDRESS")
+		respondError(w, http.StatusInternalServerError, "no contract code at configured L2_FACTORY_CONTRACT_ADDRESS")
 		return
 	}
 

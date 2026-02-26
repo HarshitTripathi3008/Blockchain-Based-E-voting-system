@@ -98,7 +98,7 @@ func Deploy(ctx context.Context, rpc string, abiPath string, binPath string, pri
 
 	fmt.Println("[OK] Deployed at address:", address.Hex())
 
-	// Update or append FACTORY_CONTRACT_ADDRESS in .env (best-effort; if it fails, return the error)
+	// Update or append L2_FACTORY_CONTRACT_ADDRESS in .env (best-effort; if it fails, return the error)
 	envPath := ".env"
 	envData := ""
 	if _, err := os.Stat(envPath); err == nil {
@@ -112,19 +112,19 @@ func Deploy(ctx context.Context, rpc string, abiPath string, binPath string, pri
 	lines := strings.Split(envData, "\n")
 	found := false
 	for i, l := range lines {
-		if strings.HasPrefix(l, "FACTORY_CONTRACT_ADDRESS=") {
-			lines[i] = "FACTORY_CONTRACT_ADDRESS=" + address.Hex()
+		if strings.HasPrefix(l, "L2_FACTORY_CONTRACT_ADDRESS=") {
+			lines[i] = "L2_FACTORY_CONTRACT_ADDRESS=" + address.Hex()
 			found = true
 			break
 		}
 	}
 	if !found {
-		lines = append(lines, "FACTORY_CONTRACT_ADDRESS="+address.Hex())
+		lines = append(lines, "L2_FACTORY_CONTRACT_ADDRESS="+address.Hex())
 	}
 	if err := os.WriteFile(envPath, []byte(strings.Join(lines, "\n")), 0644); err != nil {
 		return address, tx, fmt.Errorf("failed to write .env: %w", err)
 	}
-	fmt.Println("[INFO] .env updated with FACTORY_CONTRACT_ADDRESS =", address.Hex())
+	fmt.Println("[INFO] .env updated with L2_FACTORY_CONTRACT_ADDRESS =", address.Hex())
 
 	// Verify runtime code present at address
 	codeCtx, codeCancel := context.WithTimeout(ctx, 10*time.Second)

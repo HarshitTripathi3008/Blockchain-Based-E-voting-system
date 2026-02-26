@@ -57,10 +57,18 @@ Before running the application, ensure you have the following installed:
     MONGODB_URI=mongodb://localhost:27017
     DB_NAME=voting_system
     
-    # Ethereum Configuration
-    ETHEREUM_NODE_URL=http://127.0.0.1:8545
-    ETHEREUM_PRIVATE_KEY=<YOUR_PRIVATE_KEY_FROM_GANACHE>
-    ETHEREUM_CHAIN_ID=1337
+    # Ethereum/Sidechain Configuration
+    EVM_PRIVATE_KEY=<YOUR_PRIVATE_KEY_FROM_METAMASK>
+    
+    # L1 Anchoring Configuration
+    L1_NODE_URL=https://eth-sepolia.g.alchemy.com/v2/...
+    L1_CHAIN_ID=11155111
+    L1_ARCHIVE_CONTRACT_ADDRESS=<YOUR_L1_CONTRACT_ADDR>
+    
+    # L2 Active Voting Configuration
+    L2_NODE_URL=https://polygon-amoy.g.alchemy.com/v2/...
+    L2_CHAIN_ID=80002
+    L2_FACTORY_CONTRACT_ADDRESS=<YOUR_L2_CONTRACT_ADDR>
     
     # Email Configuration
     EMAIL=<YOUR_EMAIL_FOR_SENDING_NOTIFICATIONS>
