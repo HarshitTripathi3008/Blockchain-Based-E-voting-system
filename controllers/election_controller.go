@@ -63,12 +63,13 @@ func respondError(w http.ResponseWriter, status int, message string) {
 	respondJSON(w, status, BlockchainResponse{Status: "error", Message: message})
 }
 
-// getClient connects to ETHEREUM_NODE_URL (with timeout)
+// getClient connects to L2_NODE_URL (with timeout)
 func getClient() (*ethclient.Client, error) {
-	nodeURL := strings.TrimSpace(os.Getenv("ETHEREUM_NODE_URL"))
+	nodeURL := strings.TrimSpace(os.Getenv("L2_NODE_URL"))
 	nodeURL = strings.Trim(nodeURL, `"'`)
 	if nodeURL == "" {
-		return nil, fmt.Errorf("ETHEREUM_NODE_URL not configured")
+		log.Println("DEBUG: raw L2_NODE_URL from env = ''")
+		return nil, fmt.Errorf("L2_NODE_URL not configured")
 	}
 
 	// If the value is a host:port without scheme, add http://
