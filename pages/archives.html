@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Immutable Archives - SecureVote -- E-Voting System</title>
+    <link rel="icon" type="image/png" href="/static/logo3.png">
+    <link rel="stylesheet" href="/static/css/global.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&family=Inter:wght@400;600&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    <script src="/static/js/ui.js?v=2"></script>
+    <style>
+        .layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 250px;
+            background: rgba(23, 23, 33, 0.9);
+            border-right: 1px solid var(--glass-border);
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .nav-btn {
+            text-align: left;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            background: transparent;
+            color: var(--text-muted);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1rem;
+            width: 100%;
+            font-family: var(--font-body);
+        }
+
+        .nav-btn:hover,
+        .nav-btn.active {
+            background: rgba(108, 92, 231, 0.1);
+            color: #fff;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            background: var(--glass-bg);
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            margin-top: 2rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        th {
+            background: rgba(108, 92, 231, 0.1);
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        tr {
+            transition: all 0.2s ease;
+        }
+
+        tr:hover {
+            background: rgba(108, 92, 231, 0.05);
+        }
+
+        .verified-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.8rem;
+            background: rgba(0, 184, 148, 0.15);
+            color: #00b894;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            box-shadow: 0 0 10px rgba(0, 184, 148, 0.2);
+            border: 1px solid rgba(0, 184, 148, 0.3);
+        }
+
+        .verified-icon {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+        }
+
+        /* Shimmer Loading Effect */
+        .shimmer-row td {
+            padding: 1.5rem 1rem;
+        }
+
+        .shimmer-box {
+            animation: shimmer 2s infinite linear;
+            background: linear-gradient(to right, rgba(255, 255, 255, 0.03) 4%, rgba(255, 255, 255, 0.08) 25%, rgba(255, 255, 255, 0.03) 36%);
+            background-size: 1000px 100%;
+            height: 20px;
+            border-radius: 6px;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: -1000px 0;
+            }
+
+            100% {
+                background-position: 1000px 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Hamburger Menu Button (Mobile Only) -->
+    <button class="hamburger-btn" onclick="UI.toggleSidebar()" aria-label="Toggle Menu">
+        <div class="hamburger-icon">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+    </button>
+
+    <!-- Sidebar Overlay (Mobile Only) -->
+    <div class="sidebar-overlay" onclick="UI.closeSidebar()"></div>
+
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div style="text-align: center; margin-bottom: 3rem;">
+                <img src="/static/logo3.png" alt="Logo" style="width: 50px; margin-bottom: 0.5rem;" />
+                <h3 style="margin:0;">SecureVote <br> E-Voting System</h3>
+            </div>
+            <nav style="flex: 1;">
+                <button onclick="window.location.href='company_dashboard.html'" class="nav-btn">All Elections</button>
+                <button onclick="window.location.href='archives.html'" class="nav-btn active">L1 Archives</button>
+                <button onclick="window.location.href='create_election.html'" class="nav-btn">Create Election</button>
+            </nav>
+            <button id="logoutBtn" class="nav-btn"
+                style="color: var(--error-color); margin-top: 0.5rem;">Logout</button>
+        </aside>
+
+        <main class="main-content">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+                <div>
+                    <h2 class="gradient-text" style="font-size: 2rem; margin-bottom: 0.5rem;">Immutable Archives (L1
+                        Sepolia)</h2>
+                    <p style="color: var(--text-muted); font-size: 1.05rem;">Permanently verified election results
+                        anchored to Ethereum Sepolia.</p>
+                </div>
+            </div>
+
+            <div class="table-container fade-in">
+                <table id="archivesTable">
+                    <thead>
+                        <tr>
+                            <th>Election Title</th>
+                            <th>Election Address</th>
+                            <th>Winner</th>
+                            <th>Votes / Total Voters</th>
+                            <th>Anchored Time</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archivesTableBody">
+                        <!-- Initial Loading Skeleton -->
+                        <tr class="shimmer-row">
+                            <td colspan="6">
+                                <div class="shimmer-box" style="width: 100%"></div>
+                            </td>
+                        </tr>
+                        <tr class="shimmer-row">
+                            <td colspan="6">
+                                <div class="shimmer-box" style="width: 90%"></div>
+                            </td>
+                        </tr>
+                        <tr class="shimmer-row">
+                            <td colspan="6">
+                                <div class="shimmer-box" style="width: 95%"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function escapeHtml(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        async function loadArchives() {
+            const tbody = document.getElementById('archivesTableBody');
+            try {
+                const resp = await fetch('/api/elections/archives');
+                const json = await UI.safeJson(resp);
+
+                tbody.innerHTML = '';
+                const list = json.data || [];
+
+                if (list.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem; color: #888;">No archived results found on L1.</td></tr>';
+                    return;
+                }
+
+                list.sort((a, b) => b.anchored_timestamp - a.anchored_timestamp).forEach(result => {
+                    const tr = document.createElement('tr');
+                    const dateStr = new Date(result.anchored_timestamp * 1000).toLocaleString();
+                    const shortAddr = `${result.election_address.substr(0, 10)}...${result.election_address.substr(-8)}`;
+
+                    tr.innerHTML = `
+            <td style="font-weight:600; color:var(--text-foreground);">${escapeHtml(result.title)}</td>
+            <td style="font-family:monospace; color:var(--text-muted); font-size:0.9rem;">
+              <a href="https://sepolia.etherscan.io/address/${result.election_address}" target="_blank" style="color: var(--primary-color); text-decoration: none;">
+                ${shortAddr}
+              </a>
+            </td>
+            <td style="color: var(--accent-color); font-weight:600;">${escapeHtml(result.winner_name)}</td>
+            <td>${result.winning_votes} / ${result.total_voters}</td>
+            <td style="color: var(--text-muted); font-size: 0.9rem;">${dateStr}</td>
+            <td>
+              <span class="verified-badge">
+                <svg class="verified-icon" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                L1 Verified
+              </span>
+            </td>
+          `;
+                    tbody.appendChild(tr);
+                });
+
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem; color: var(--error-color);">Failed to fetch Archives from L1.</td></tr>';
+            }
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', function () {
+            Cookies.remove('company_email', { path: '/' });
+            window.location.href = 'homepage.html';
+        });
+
+        // Init
+        loadArchives();
+    </script>
+</body>
+
+</html>

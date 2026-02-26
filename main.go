@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -45,50 +46,65 @@ func main() {
 	}
 
 	// -----------------------------------------------------
-	// 2) DEPLOY CONTRACT (IF NOT EXISTS)
+	// 2) DEPLOY CONTRACTS (IF NOT EXISTS)
 	// -----------------------------------------------------
-	factoryAddr := os.Getenv("FACTORY_CONTRACT_ADDRESS")
-	if factoryAddr != "" {
-		log.Printf("[OK] Existing Contract Factory found in .env: %s", factoryAddr)
-		log.Println("[SKIPPED] Skipping deployment.")
+	privHex := os.Getenv("EVM_PRIVATE_KEY")
+	if privHex == "" {
+		log.Fatal("[ERROR] EVM_PRIVATE_KEY not set in .env. Execution aborted for security.")
+	}
+
+	// Deploy L2 Factory
+	l2FactoryAddr := os.Getenv("L2_FACTORY_CONTRACT_ADDRESS")
+	if l2FactoryAddr != "" {
+		log.Printf("[OK] Existing L2 Factory found in .env: %s", l2FactoryAddr)
+		log.Println("[SKIPPED] Skipping L2 Factory deployment.")
 	} else {
+		log.Println("[INFO] Deploying L2 Election Factory...")
+		l2Rpc := os.Getenv("L2_NODE_URL")
+		if l2Rpc == "" {
+			log.Fatal("[ERROR] L2_NODE_URL must be set")
+		}
+		l2ChainIDStr := os.Getenv("L2_CHAIN_ID")
+		l2ChainIDVal, _ := strconv.ParseInt(l2ChainIDStr, 10, 64)
+		if l2ChainIDVal == 0 {
+			l2ChainIDVal = 80002
+		} // Default Amoy
+
 		deployCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-		defer cancel()
-
-		rpc := os.Getenv("ETHEREUM_NODE_URL")
-		fmt.Printf("DEBUG: raw ETHEREUM_NODE_URL from env = '%s'\n", rpc)
-		if rpc == "" {
-			rpc = "http://127.0.0.1:8545"
-			fmt.Println("DEBUG: rpc was empty, falling back to localhost")
-		}
-
-		// Use standard paths
-		abiPath := "build/ElectionFact.abi"
-		binPath := "build/ElectionFact.bin"
-
-		// Verify they exist
-		if _, err := os.Stat(binPath); os.IsNotExist(err) {
-			log.Fatalf("[ERROR] Build artifact not found: %s", binPath)
-		}
-
-		privHex := os.Getenv("ETHEREUM_PRIVATE_KEY")
-		if privHex == "" {
-			log.Fatal("[ERROR] ETHEREUM_PRIVATE_KEY not set in .env. Execution aborted for security.")
-		}
-
-		chainIDVal := int64(11155111) // Force Sepolia Chain ID
-		chainID := big.NewInt(chainIDVal)
-		log.Printf("DEBUG: Using ChainID: %s", chainID.String())
-
-		addr, tx, err := util.Deploy(deployCtx, rpc, abiPath, binPath, privHex, chainID)
+		addr, tx, err := util.Deploy(deployCtx, l2Rpc, "build/ElectionFact.abi", "build/ElectionFact.bin", privHex, big.NewInt(l2ChainIDVal))
+		cancel()
 		if err != nil {
-			log.Fatalf("[ERROR] Contract deployment failed: %v", err)
+			log.Fatalf("[ERROR] L2 Factory deployment failed: %v", err)
 		}
-		log.Printf("[DEPLOYED] Contract deployed at: %s | tx: %s", addr.Hex(), tx.Hash().Hex())
+		log.Printf("[L2 DEPLOYED] Factory contract at: %s | tx: %s", addr.Hex(), tx.Hash().Hex())
+		os.Setenv("L2_FACTORY_CONTRACT_ADDRESS", addr.Hex())
+	}
 
-		// Update process env so controllers use the new contract immediately
-		os.Setenv("FACTORY_CONTRACT_ADDRESS", addr.Hex())
-		log.Printf("[UPDATED] Updated process env FACTORY_CONTRACT_ADDRESS to: %s", addr.Hex())
+	// Deploy L1 Archive
+	l1ArchiveAddr := os.Getenv("L1_ARCHIVE_CONTRACT_ADDRESS")
+	if l1ArchiveAddr != "" {
+		log.Printf("[OK] Existing L1 Archive found in .env: %s", l1ArchiveAddr)
+		log.Println("[SKIPPED] Skipping L1 Archive deployment.")
+	} else {
+		log.Println("[INFO] Deploying L1 Election Archive...")
+		l1Rpc := os.Getenv("L1_NODE_URL")
+		if l1Rpc == "" {
+			log.Fatal("[ERROR] L1_NODE_URL must be set")
+		}
+		l1ChainIDStr := os.Getenv("L1_CHAIN_ID")
+		l1ChainIDVal, _ := strconv.ParseInt(l1ChainIDStr, 10, 64)
+		if l1ChainIDVal == 0 {
+			l1ChainIDVal = 11155111
+		} // Default Sepolia
+
+		deployCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		addr, tx, err := util.Deploy(deployCtx, l1Rpc, "build/Ethereum_Contract_ElectionArchive_sol_ElectionArchive.abi", "build/Ethereum_Contract_ElectionArchive_sol_ElectionArchive.bin", privHex, big.NewInt(l1ChainIDVal))
+		cancel()
+		if err != nil {
+			log.Fatalf("[ERROR] L1 Archive deployment failed: %v", err)
+		}
+		log.Printf("[L1 DEPLOYED] Archive contract at: %s | tx: %s", addr.Hex(), tx.Hash().Hex())
+		os.Setenv("L1_ARCHIVE_CONTRACT_ADDRESS", addr.Hex())
 	}
 
 	// Validate required env variables

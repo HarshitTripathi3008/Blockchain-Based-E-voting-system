@@ -49,8 +49,9 @@ func SetupRoutes() *mux.Router {
 	api.HandleFunc("/elections/dates", controllers.SetElectionDates).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/metadata", controllers.GetElectionMetadata).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/analytics/geo", controllers.GetVoterAnalytics).Methods(http.MethodGet, http.MethodOptions)
-	api.HandleFunc("/elections/{address}/end", controllers.EndElection).Methods(http.MethodPost, http.MethodOptions) // NEW
-	api.HandleFunc("/elections", controllers.GetAllElections).Methods(http.MethodGet, http.MethodOptions)            // NEW
+	api.HandleFunc("/elections/{address}/end", controllers.EndElection).Methods(http.MethodPost, http.MethodOptions)  // NEW
+	api.HandleFunc("/elections", controllers.GetAllElections).Methods(http.MethodGet, http.MethodOptions)             // NEW
+	api.HandleFunc("/elections/archives", controllers.GetArchivedResults).Methods(http.MethodGet, http.MethodOptions) // L1 Archives
 
 	// ----------------------------
 	// CANDIDATE ROUTES
