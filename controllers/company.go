@@ -167,8 +167,9 @@ func AuthenticateCompany(w http.ResponseWriter, r *http.Request) {
 			// ensure client closed
 			defer client.Close()
 
-			factoryAddr := common.HexToAddress(factoryAddrStr)
-			factory, err := bindings.NewElectionFactory(factoryAddr, client)
+			// Convert string address to common.Address and instantiate ElectionFact
+			contractAddress := common.HexToAddress(factoryAddrStr)
+			factory, err := bindings.NewElectionFact(contractAddress, client)
 			if err == nil {
 				// Use call opts with request context (non-blocking/polite)
 				callOpts := &bind.CallOpts{Context: r.Context(), Pending: false}

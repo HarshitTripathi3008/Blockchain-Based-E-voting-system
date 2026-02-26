@@ -262,8 +262,8 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Bind factory (transactor) for creating election
-	factory, err := bindings.NewElectionFactory(factoryAddr, client)
+	// Setup binding
+	factory, err := bindings.NewElectionFact(factoryAddr, client)
 	if err != nil {
 		log.Printf("CreateElection: factory binding error for %s: %v", factoryRaw, err)
 		respondError(w, http.StatusInternalServerError, "failed to bind to factory contract")
@@ -308,7 +308,7 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 		callCtx, callCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer callCancel()
 
-		factoryCaller, err := bindings.NewElectionFactoryCaller(factoryAddr, client)
+		factoryCaller, err := bindings.NewElectionFactCaller(factoryAddr, client)
 		if err != nil {
 			// not fatal; we'll still return tx hash
 			log.Printf("CreateElection: NewElectionFactoryCaller binding error for %s: %v", factoryRaw, err)
@@ -587,7 +587,7 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		factoryCaller, ferr2 := bindings.NewElectionFactoryCaller(factoryAddr, client)
+		factoryCaller, ferr2 := bindings.NewElectionFactCaller(factoryAddr, client)
 		if ferr2 != nil {
 			log.Printf("GetElectionCandidates: factory caller binding error for %s: %v\n", factoryRaw, ferr2)
 			tryDBFallbackWithMessage(w, addrStr, "factory binding error while resolving email")
@@ -793,7 +793,7 @@ func GetElectionInfo(w http.ResponseWriter, r *http.Request) {
 			client, cerr := getClient()
 			if cerr == nil {
 				defer client.Close()
-				factoryCaller, ferr2 := bindings.NewElectionFactoryCaller(factoryAddr, client)
+				factoryCaller, ferr2 := bindings.NewElectionFactCaller(factoryAddr, client)
 				if ferr2 == nil {
 					callOpts := &bind.CallOpts{Context: r.Context(), Pending: false}
 					elections, gerr := factoryCaller.GetDeployedElections(callOpts, rawAddr)
