@@ -98,33 +98,41 @@ func Deploy(ctx context.Context, rpc string, abiPath string, binPath string, pri
 
 	fmt.Println("[OK] Deployed at address:", address.Hex())
 
-	// Update or append L2_FACTORY_CONTRACT_ADDRESS in .env (best-effort; if it fails, return the error)
-	envPath := ".env"
-	envData := ""
-	if _, err := os.Stat(envPath); err == nil {
-		// read existing .env
-		b, err := os.ReadFile(envPath)
-		if err != nil {
-			return address, tx, fmt.Errorf("failed to read .env: %w", err)
+	envKey := ""
+	if strings.Contains(binPath, "ElectionFact") {
+		envKey = "L2_FACTORY_CONTRACT_ADDRESS"
+	} else if strings.Contains(binPath, "ElectionArchive") {
+		envKey = "L1_ARCHIVE_CONTRACT_ADDRESS"
+	}
+
+	if envKey != "" {
+		envPath := ".env"
+		envData := ""
+		if _, err := os.Stat(envPath); err == nil {
+			// read existing .env
+			b, err := os.ReadFile(envPath)
+			if err != nil {
+				return address, tx, fmt.Errorf("failed to read .env: %w", err)
+			}
+			envData = string(b)
 		}
-		envData = string(b)
-	}
-	lines := strings.Split(envData, "\n")
-	found := false
-	for i, l := range lines {
-		if strings.HasPrefix(l, "L2_FACTORY_CONTRACT_ADDRESS=") {
-			lines[i] = "L2_FACTORY_CONTRACT_ADDRESS=" + address.Hex()
-			found = true
-			break
+		lines := strings.Split(envData, "\n")
+		found := false
+		for i, l := range lines {
+			if strings.HasPrefix(l, envKey+"=") {
+				lines[i] = envKey + "=" + address.Hex()
+				found = true
+				break
+			}
 		}
+		if !found {
+			lines = append(lines, envKey+"="+address.Hex())
+		}
+		if err := os.WriteFile(envPath, []byte(strings.Join(lines, "\n")), 0644); err != nil {
+			return address, tx, fmt.Errorf("failed to write .env: %w", err)
+		}
+		fmt.Println("[INFO] .env updated with", envKey, "=", address.Hex())
 	}
-	if !found {
-		lines = append(lines, "L2_FACTORY_CONTRACT_ADDRESS="+address.Hex())
-	}
-	if err := os.WriteFile(envPath, []byte(strings.Join(lines, "\n")), 0644); err != nil {
-		return address, tx, fmt.Errorf("failed to write .env: %w", err)
-	}
-	fmt.Println("[INFO] .env updated with L2_FACTORY_CONTRACT_ADDRESS =", address.Hex())
 
 	// Verify runtime code present at address
 	codeCtx, codeCancel := context.WithTimeout(ctx, 10*time.Second)

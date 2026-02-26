@@ -276,7 +276,19 @@ func EndElection(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		callOpts := &bind.CallOpts{Context: context.Background(), Pending: false}
+		privKeyStr := os.Getenv("EVM_PRIVATE_KEY")
+		if privKeyStr == "" {
+			log.Println("[ANCHOR ERROR] EVM_PRIVATE_KEY missing")
+			return
+		}
+		privKey, err := crypto.HexToECDSA(strings.TrimPrefix(privKeyStr, "0x"))
+		if err != nil {
+			log.Printf("[ANCHOR ERROR] Invalid Private Key: %v", err)
+			return
+		}
+		fromAddress := crypto.PubkeyToAddress(privKey.PublicKey)
+
+		callOpts := &bind.CallOpts{Context: context.Background(), Pending: false, From: fromAddress}
 
 		// 2. Fetch Winners and Metadata from L2
 		title, _, err := l2Election.GetElectionDetails(callOpts)
@@ -327,17 +339,6 @@ func EndElection(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 4. Create L1 Transactor
-		privKeyStr := os.Getenv("EVM_PRIVATE_KEY")
-		if privKeyStr == "" {
-			log.Println("[ANCHOR ERROR] EVM_PRIVATE_KEY missing")
-			return
-		}
-
-		privKey, err := crypto.HexToECDSA(strings.TrimPrefix(privKeyStr, "0x"))
-		if err != nil {
-			log.Printf("[ANCHOR ERROR] Invalid Private Key: %v", err)
-			return
-		}
 
 		l1ChainIDVal, _ := new(big.Int).SetString(os.Getenv("L1_CHAIN_ID"), 10)
 		if l1ChainIDVal == nil || l1ChainIDVal.Uint64() == 0 {
