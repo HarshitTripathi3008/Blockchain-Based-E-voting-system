@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -306,8 +306,8 @@
         <div class="action-panel-btns">
           <button id="viewCandidates" class="btn btn-outline">View Candidates</button>
           <button id="manageVoters" class="btn btn-outline">Manage Voters</button>
-          <button id="endElection" class="btn" style="background: var(--error-color); color: white; border: none;">End
-            Election</button>
+          <button id="sendEmailBtn" class="btn btn-outline" style="border-color: #00cec9; color: #00cec9;">Send Result Email</button>
+          <button id="endElection" class="btn" style="background: var(--error-color); color: white; border: none;">End Election</button>
         </div>
       </div>
     </main>
@@ -584,7 +584,7 @@
       }
     }
 
-    // --- End Election Logic ---
+    // --- End Election & Email Logic ---
     async function endElectionHandler() {
       const addr = getElectionAddress();
       if (!confirm(`Are you sure you want to END election ${addr}? Voting will stop immediately.`)) return;
@@ -598,27 +598,7 @@
         const respEnd = await fetch(`/api/elections/${encodeURIComponent(addr)}/end`, { method: 'POST' });
         if (!respEnd.ok) throw new Error('Failed to end election status');
 
-        // 2. Compute Winner and Send Mail (Existing logic)
-        // Note: computeWinner fetches candidates to find max votes
-        const winner = await getWinner(addr);
-        let payload = {
-          election_address: addr,
-          election_name: document.getElementById('electionName').textContent,
-          winner_candidate: winner ? winner.name : "No Votes Cast"
-        };
-        // If winner exists, send mail to them too
-        if (winner && winner.email) payload.candidate_email = winner.email;
-
-        UI.toast('Election Ended. Sending Result Emails...', 'info');
-
-        // Trigger mail 
-        await fetch('/api/voter/resultMail', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        UI.toast('Election Ended Successfully!', 'success');
+        UI.toast('Election Ended Successfully! Results are anchoring to L1...', 'success');
         setTimeout(() => window.location.reload(), 1500);
 
       } catch (err) {
@@ -626,6 +606,44 @@
         UI.toast('Error ending election: ' + err.message, 'error');
         btn.disabled = false;
         btn.textContent = "End Election";
+      }
+    }
+
+    async function sendEmailHandler() {
+      const addr = getElectionAddress();
+      if (!confirm(`Are you sure you want to SEND result emails to voters for election ${addr}?`)) return;
+
+      const btn = document.getElementById('sendEmailBtn');
+      try {
+        btn.textContent = "Sending...";
+        btn.disabled = true;
+
+        // 2. Compute Winner and Send Mail
+        const winner = await getWinner(addr);
+        let payload = {
+          election_address: addr,
+          election_name: document.getElementById('electionName').textContent,
+          winner_candidate: winner ? winner.name : "No Votes Cast"
+        };
+        if (winner && winner.email) payload.candidate_email = winner.email;
+
+        UI.toast('Sending Result Emails...', 'info');
+
+        const resp = await fetch('/api/voter/resultMail', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) throw new Error('Failed to send result email');
+
+        UI.toast('Result Emails Sent Successfully!', 'success');
+      } catch (err) {
+        console.error(err);
+        UI.toast('Error sending email: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Send Result Email";
       }
     }
 
@@ -658,6 +676,7 @@
     document.getElementById('viewCandidates').addEventListener('click', () => navTo('candidate_list.html'));
     document.getElementById('manageVoters').addEventListener('click', () => navTo('voting_list.html'));
     document.getElementById('endElection').addEventListener('click', endElectionHandler);
+    document.getElementById('sendEmailBtn').addEventListener('click', sendEmailHandler);
 
     // Init
     updateHeaderDisplays();
