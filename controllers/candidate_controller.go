@@ -1,12 +1,10 @@
-﻿package controllers
+package controllers
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/smtp"
-	"os"
 	"time"
 
 	"MAJOR-PROJECT/bindings"
@@ -186,9 +184,11 @@ func RegisterCandidate(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Send email asynchronously using the shared email queue from voter.go or simple goroutine
+	// Send email asynchronously using the shared email queue from voter.go
 	go func() {
-		_ = sendRegistrationEmail(req.Email, req.ElectionName)
+		subject := fmt.Sprintf("%s Registration", req.ElectionName)
+		body := fmt.Sprintf("Congratulations! You have been registered for the %s election.\n\nBest regards,\nVoting System Team", req.ElectionName)
+		_ = sendEmail(req.Email, subject, body)
 	}()
 }
 func updateCandidateStatus(txHash, status string) {
@@ -205,29 +205,4 @@ func updateCandidateStatus(txHash, status string) {
 	if err != nil {
 		fmt.Printf("warning: failed to update candidate status for tx %s: %v\n", txHash, err)
 	}
-}
-
-// sendRegistrationEmail sends a registration confirmation email using SMTP. It uses EMAIL and PASSWORD env vars.
-func sendRegistrationEmail(to, electionName string) error {
-	from := os.Getenv("EMAIL")
-	password := os.Getenv("PASSWORD") // keep env var name 'PASSWORD' as in your .env
-
-	if from == "" || password == "" {
-		return fmt.Errorf("email credentials not configured in environment")
-	}
-
-	const smtpHost = "smtp.gmail.com"
-	const smtpPort = "587"
-
-	auth := smtp.PlainAuth("", from, password, smtpHost)
-
-	subject := fmt.Sprintf("%s Registration", electionName)
-	body := fmt.Sprintf("Congratulations! You have been registered for the %s election.\n\nBest regards,\nVoting System Team", electionName)
-
-	msg := fmt.Sprintf(
-		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
-		from, to, subject, body,
-	)
-
-	return smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, []byte(msg))
 }
