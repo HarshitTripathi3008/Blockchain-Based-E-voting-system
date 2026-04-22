@@ -98,10 +98,20 @@ func GetVoterStatus(w http.ResponseWriter, r *http.Request) {
 	var voter Voter
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := voterCollection.FindOne(ctx, bson.M{"email": email, "registrations.election_address": address}).Decode(&voter)
+
+	addrRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(address) + "$", "$options": "i"}
+	emailRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(email) + "$", "$options": "i"}
+
+	// Find voter who has a registration for this address
+	err := voterCollection.FindOne(ctx, bson.M{
+		"email": emailRegex,
+		"registrations.election_address": addrRegex,
+	}).Decode(&voter)
+
 	if err == nil {
 		for _, reg := range voter.Registrations {
-			if strings.EqualFold(reg.ElectionAddress, address) && reg.Status == "Voted" {
+			if strings.EqualFold(reg.ElectionAddress, address) &&
+				(strings.EqualFold(reg.Status, "Voted") || strings.EqualFold(reg.Status, "voted")) {
 				respondJSON(w, http.StatusOK, BlockchainResponse{
 					Status:  "success",
 					Message: "Voter has already voted",

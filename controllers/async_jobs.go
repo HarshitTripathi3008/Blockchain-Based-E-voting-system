@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"regexp"
 	"fmt"
 	"log"
 	"math/big"
@@ -240,9 +241,12 @@ func getVoteJobByVoter(electionAddr, voterEmail string) (*VoteJobDocument, error
 	defer cancel()
 
 	var job VoteJobDocument
+	addrRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(electionAddr) + "$", "$options": "i"}
+	emailRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(voterEmail) + "$", "$options": "i"}
+
 	err := voteJobCollection.FindOne(ctx, bson.M{
-		"electionAddress": electionAddr,
-		"voterEmail":      voterEmail,
+		"electionAddress": addrRegex,
+		"voterEmail":      emailRegex,
 	}, options.FindOne().SetSort(bson.D{{Key: "createdAt", Value: -1}})).Decode(&job)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
