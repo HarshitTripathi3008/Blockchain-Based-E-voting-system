@@ -380,11 +380,13 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// MFA CHECK
+	// MFA CHECK (Commented out)
+	/*
 	if ok := VerifyAndDeleteOTP(req.VoterEmail, req.OTP); !ok {
 		respondError(w, http.StatusUnauthorized, "Invalid or expired OTP")
 		return
 	}
+	*/
 
 	client, err := getClient()
 	if err != nil {

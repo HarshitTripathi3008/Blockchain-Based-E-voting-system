@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -262,7 +262,7 @@
 
       <div id="candidatesContainer"></div>
 
-      <!-- OTP Section -->
+      <!-- OTP Section
       <div id="otpSection"
         style="margin-top: 1.5rem; border-top: 1px solid var(--glass-border); padding-top: 1rem; display:none;">
         <h4 style="margin-bottom:0.5rem; color:var(--accent-color);">Security Verification</h4>
@@ -274,6 +274,7 @@
           <button id="sendVoteOtpBtn" class="btn btn-outline" style="white-space:nowrap;">Send OTP</button>
         </div>
       </div>
+      -->
 
       <div style="margin-top: 2rem; text-align: right;">
         <button id="submitVote" class="btn btn-primary" disabled style="width: 100%;">Confirm Vote</button>
@@ -411,7 +412,7 @@
 
             selectedCandidateId = idx;
             // Show OTP section
-            document.getElementById('otpSection').style.display = 'block';
+            // document.getElementById('otpSection').style.display = 'block';
             document.getElementById('submitVote').textContent = `Confirm & Vote`;
             submitBtn.disabled = false;
           };
@@ -466,16 +467,16 @@
           candidate_id: selectedCandidateId,
           voter_email: getVoterEmail(),
           election_address: getElectionAddress(),
-          otp: document.getElementById('voteOtpInput').value
+          otp: "disabled" // document.getElementById('voteOtpInput').value
         };
 
-        if (!payload.otp) {
-          UI.toast("Please enter OTP", "warning");
-          submitBtn.disabled = false;
-          submitBtn.style.opacity = 1;
-          UI.hideLoader();
-          return;
-        }
+        // if (!payload.otp) {
+        //  UI.toast("Please enter OTP", "warning");
+        //  submitBtn.disabled = false;
+        //  submitBtn.style.opacity = 1;
+        //  UI.hideLoader();
+        //  return;
+        // }
 
         const resp = await fetch(`/api/elections/${encodeURIComponent(payload.election_address)}/vote`, {
           method: 'POST',
