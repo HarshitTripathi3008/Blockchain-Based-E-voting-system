@@ -381,14 +381,20 @@ func processVoteJob(job *VoteJobDocument) error {
 	go trackVoteMining(job.ID, job.ElectionAddress, job.VoterEmail, tx)
 
 	// PERMANENT LOCK: Update voter status in DB as soon as transaction is SUBMITTED
-	// this makes the "hasVoted" check true even before the tx is mined.
 	if voterCollection != nil {
 		vCtx, vCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer vCancel()
-		_, _ = voterCollection.UpdateOne(vCtx,
-			bson.M{"email": job.VoterEmail, "registrations.election_address": job.ElectionAddress},
+		
+		addrRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(job.ElectionAddress) + "$", "$options": "i"}
+		emailRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(job.VoterEmail) + "$", "$options": "i"}
+
+		_, updateErr := voterCollection.UpdateOne(vCtx,
+			bson.M{"email": emailRegex, "registrations.election_address": addrRegex},
 			bson.M{"$set": bson.M{"registrations.$.status": "Voted"}},
 		)
+		if updateErr != nil {
+			log.Printf("[VOTE WORKER] status update error for %s: %v", job.VoterEmail, updateErr)
+		}
 	}
 
 	return nil
@@ -439,8 +445,12 @@ func trackVoteMining(id primitive.ObjectID, electionAddress, voterEmail string, 
 		if voterCollection != nil {
 			vCtx, vCancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer vCancel()
+
+			addrRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(electionAddress) + "$", "$options": "i"}
+			emailRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(voterEmail) + "$", "$options": "i"}
+
 			_, _ = voterCollection.UpdateOne(vCtx,
-				bson.M{"email": voterEmail, "registrations.election_address": electionAddress},
+				bson.M{"email": emailRegex, "registrations.election_address": addrRegex},
 				bson.M{"$set": bson.M{"registrations.$.status": "Voted"}},
 			)
 		}
