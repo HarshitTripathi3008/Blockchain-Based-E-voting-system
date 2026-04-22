@@ -128,30 +128,43 @@ func getAuth(client *ethclient.Client) (*bind.TransactOpts, error) {
 		return nil, fmt.Errorf("failed to create transactor: %w", err)
 	}
 
-	// Fetch network suggested gas price and bump by 50% to prevent stuck txns on Sepolia
+	// DYNAMIC GAS STRATEGY (EIP-1559)
+	// We use aggressive GasTipCap (priority) and GasFeeCap (max) to ensure mining.
 	if client != nil {
-		gasPrice, errGas := client.SuggestGasPrice(context.Background())
-		if errGas == nil {
-			bumpedGas := new(big.Int).Mul(gasPrice, big.NewInt(150))
-			bumpedGas.Div(bumpedGas, big.NewInt(100))
-			auth.GasPrice = bumpedGas
+		head, err := client.HeaderByNumber(context.Background(), nil)
+		if err == nil && head.BaseFee != nil {
+			// 1. Suggest Priority Fee (Tip)
+			tip, errTip := client.SuggestGasTipCap(context.Background())
+			if errTip != nil {
+				tip = big.NewInt(2500000000) // Fallback to 2.5 Gwei tip
+			} else {
+				// Bump tip by 100% to ensure priority
+				tip = new(big.Int).Mul(tip, big.NewInt(2))
+			}
+
+			// 2. Calculate Max Fee
+			// maxFee = (baseFee * 2) + tip
+			maxFee := new(big.Int).Mul(head.BaseFee, big.NewInt(2))
+			maxFee.Add(maxFee, tip)
+
+			auth.GasTipCap = tip
+			auth.GasFeeCap = maxFee
+			auth.GasPrice = nil // Ensure we use EIP-1559
+		} else {
+			// Fallback to bumped Legacy GasPrice if EIP-1559 is unavailable
+			gasPrice, errGas := client.SuggestGasPrice(context.Background())
+			if errGas == nil {
+				auth.GasPrice = new(big.Int).Mul(gasPrice, big.NewInt(2)) // 2x legacy price
+			}
 		}
 	}
 
-	// GAS_LIMIT override from env; fallback to a safe 500000 if not set
-	auth.GasLimit = 500000 // safe default for all Sepolia contract calls
+	// GAS_LIMIT: Safe default for Sepolia (500k)
+	auth.GasLimit = 500000 
 	if gl := strings.TrimSpace(os.Getenv("GAS_LIMIT")); gl != "" {
 		gl = strings.Trim(gl, `"'`)
 		if glBig, ok := new(big.Int).SetString(gl, 10); ok && glBig.Sign() > 0 {
 			auth.GasLimit = glBig.Uint64()
-		}
-	}
-
-	// optional GAS_PRICE override (env expects decimal wei)
-	if gp := strings.TrimSpace(os.Getenv("GAS_PRICE")); gp != "" {
-		gp = strings.Trim(gp, `"'`)
-		if gpBig, ok := new(big.Int).SetString(gp, 10); ok && gpBig.Sign() > 0 {
-			auth.GasPrice = gpBig
 		}
 	}
 
