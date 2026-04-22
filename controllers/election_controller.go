@@ -191,13 +191,14 @@ func getAuth(client *ethclient.Client) (*bind.TransactOpts, error) {
 		return nil, fmt.Errorf("Invalid EVM_PRIVATE_KEY: %v", err)
 	}
 
-	// 2. Get Chain ID
-	chainIDStr := strings.TrimSpace(os.Getenv("L2_CHAIN_ID"))
-	chainIDInt, err := strconv.ParseInt(chainIDStr, 10, 64)
-	if err != nil || chainIDInt == 0 {
-		chainIDInt = 80002 // Default to Amoy
+	// 2. Get Chain ID from client directly (Chain-Agnostic)
+	chainID, err := client.ChainID(context.Background())
+	if err != nil {
+		chainID = big.NewInt(80002) // Fallback
+		if cid, err := strconv.ParseInt(os.Getenv("L2_CHAIN_ID"), 10, 64); err == nil {
+			chainID = big.NewInt(cid)
+		}
 	}
-	chainID := big.NewInt(chainIDInt)
 
 	auth, err := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
 	if err != nil {
@@ -368,34 +369,46 @@ func submitChainTx(
 	makeAuth func() (*bind.TransactOpts, error),
 	submit func(*bind.TransactOpts) (*types.Transaction, error),
 ) (*types.Transaction, error) {
+	// 1. Get chain ID for logging
+	chainID, _ := client.ChainID(context.Background())
+	cid := uint64(0)
+	if chainID != nil {
+		cid = chainID.Uint64()
+	}
+
 	auth, err := makeAuth()
 	if err != nil {
 		return nil, err
 	}
 
+	// 2. Fetch Nonce
 	nonce, err := getNextNonce(client, auth.From)
 	if err != nil {
 		return nil, err
 	}
 	auth.Nonce = nonce
 
+	log.Printf("[BC-TX] Submitting tx to chain %d with nonce %d for %s", cid, nonce.Uint64(), auth.From.Hex())
+
+	// 3. Submit
 	tx, err := submit(auth)
 	if err == nil {
+		log.Printf("[BC-TX] Success! Tx sent: %s (Chain %d, Nonce %d)", tx.Hash().Hex(), cid, nonce.Uint64())
 		return tx, nil
 	}
 
-	// PERMANENT FIX: If ANY error occurred (Nonce or Revert), we MUST resync the nonce.
-	// Otherwise, we skip a nonce (since getNextNonce already incremented it) and everything STOPS.
-	log.Printf("[RECOVERY] Tx failed: %v. Resyncing nonce to prevent deadlock.", err)
+	// 4. RECOVERY: If ANY error occurred (Nonce or Revert), we MUST resync the nonce.
+	log.Printf("[RECOVERY] Tx failed on chain %d (Nonce %d): %v. Resyncing nonce to prevent deadlock.", cid, nonce.Uint64(), err)
 	_ = resyncNonce(client, auth.From)
 
 	if !isNonceError(err) {
 		return nil, err
 	}
 
-	log.Printf("[WARN] Nonce submission error for %s: %v. Resyncing nonce and retrying once.", auth.From.Hex(), err)
+	// 5. NONCE SPECIFIC RETRY
+	log.Printf("[WARN] Nonce error on chain %d: %v. Retrying with fresh resynced nonce...", cid, err)
 	if resyncErr := resyncNonce(client, auth.From); resyncErr != nil {
-		return nil, fmt.Errorf("submit tx failed with nonce error %v and nonce resync failed: %w", err, resyncErr)
+		return nil, fmt.Errorf("retry aborted: nonce resync failed: %w", resyncErr)
 	}
 
 	authRetry, authErr := makeAuth()
@@ -408,7 +421,16 @@ func submitChainTx(
 	}
 	authRetry.Nonce = nonceRetry
 
-	return submit(authRetry)
+	log.Printf("[BC-TX-RETRY] Retrying on chain %d with nonce %d", cid, nonceRetry.Uint64())
+	txRetry, retryErr := submit(authRetry)
+	if retryErr != nil {
+		log.Printf("[BC-TX-RETRY] Failed again: %v", retryErr)
+		_ = resyncNonce(client, authRetry.From) // resync again on final failure
+		return nil, retryErr
+	}
+
+	log.Printf("[BC-TX-RETRY] Success on retry! Tx: %s", txRetry.Hash().Hex())
+	return txRetry, nil
 }
 
 // normalizeFactoryAddr returns a validated, 0x-prefixed factory address string and the parsed common.Address.
@@ -495,6 +517,12 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 		log.Printf("CreateElection: factory binding error for %s: %v", factoryRaw, err)
 		respondError(w, http.StatusInternalServerError, "failed to bind to factory contract")
 		return
+	}
+
+	// PROACTIVE NONCE RESYNC: Ensure we have the latest state before doing a critical admin task
+	adminAuth, adminErr := getAuth(client)
+	if adminErr == nil {
+		_ = resyncNonce(client, adminAuth.From)
 	}
 
 	// Submit CreateElection tx
