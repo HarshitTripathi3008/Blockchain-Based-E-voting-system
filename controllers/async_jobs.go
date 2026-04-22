@@ -303,6 +303,17 @@ func processVoteJob(job *VoteJobDocument) error {
 		return updateVoteJobFailure(job.ID, err)
 	}
 
+	// --- SAFETY PRE-FLIGHT CHECK ---
+	// Check if the voter has already voted via a call (free) before sending a transaction (paid).
+	// This avoids "execution reverted: Error: You cannot double vote" on the blockchain.
+	voterInfo, err := contract.Voters(&bind.CallOpts{Context: context.Background()}, job.VoterEmail)
+	if err == nil && voterInfo.Voted {
+		log.Printf("[WARN] Voter %s already voted for candidate %d. Failing job.", job.VoterEmail, voterInfo.CandidateIdVoted.Int64())
+		return updateVoteJobFailure(job.ID, fmt.Errorf("voter has already voted"))
+	}
+
+	log.Printf("[INFO] Submitting vote to blockchain: Election=%s, Voter=%s, CandidateID=%d", job.ElectionAddress, job.VoterEmail, job.CandidateID)
+
 	tx, err := submitL2Tx(
 		client,
 		func() (*bind.TransactOpts, error) {
@@ -313,6 +324,7 @@ func processVoteJob(job *VoteJobDocument) error {
 		},
 	)
 	if err != nil {
+		log.Printf("[ERROR] Vote submission failed for %s: %v", job.VoterEmail, err)
 		return updateVoteJobFailure(job.ID, err)
 	}
 
