@@ -537,6 +537,18 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 		}
 	*/
 
+	// INSTANT DB CHECK: Has this voter already submitted a vote for this election?
+	// We check for "completed" (mined), "submitted" (pending on BC), or "queued" (waiting in worker)
+	existingJob, _ := getVoteJobByVoter(addrNorm, req.VoterEmail)
+	if existingJob != nil && existingJob.Status != "failed" {
+		msg := "You have already voted in this election."
+		if existingJob.Status == "queued" || existingJob.Status == "submitted" {
+			msg = "Your vote is currently being processed on the blockchain. Please wait."
+		}
+		respondError(w, http.StatusBadRequest, msg)
+		return
+	}
+
 	job, err := enqueueVoteJob(addrNorm, req.CandidateID, req.VoterEmail)
 	if err != nil {
 		log.Printf("VoteCandidate: enqueue error: %v", err)

@@ -232,6 +232,24 @@ func enqueueVoteJob(electionAddress string, candidateID int64, voterEmail string
 	return &doc, nil
 }
 
+func getVoteJobByVoter(electionAddr, voterEmail string) (*VoteJobDocument, error) {
+	if voteJobCollection == nil {
+		return nil, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var job VoteJobDocument
+	err := voteJobCollection.FindOne(ctx, bson.M{
+		"electionAddress": electionAddr,
+		"voterEmail":      voterEmail,
+	}, options.FindOne().SetSort(bson.D{{Key: "createdAt", Value: -1}})).Decode(&job)
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	return &job, err
+}
+
 func claimNextVoteJob(ctx context.Context) (*VoteJobDocument, error) {
 	if voteJobCollection == nil {
 		return nil, nil
