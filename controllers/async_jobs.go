@@ -211,7 +211,7 @@ func enqueueVoteJob(electionAddress string, candidateID int64, voterEmail string
 	if err == nil {
 		return &existing, nil
 	}
-	if err != nil && err != mongo.ErrNoDocuments {
+	if err != mongo.ErrNoDocuments {
 		return nil, err
 	}
 
