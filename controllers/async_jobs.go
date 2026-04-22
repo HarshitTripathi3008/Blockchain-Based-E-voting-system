@@ -303,6 +303,19 @@ func processVoteJob(job *VoteJobDocument) error {
 		return updateVoteJobFailure(job.ID, err)
 	}
 
+	// --- CONCURRENCY CHECK: Is another job already active for this voter? ---
+	// This prevents multiple submissions for the same voter before the first one is mined.
+	count, err := voteJobCollection.CountDocuments(context.Background(), bson.M{
+		"electionAddress": job.ElectionAddress,
+		"voterEmail":      job.VoterEmail,
+		"status":          bson.M{"$in": []string{"submitted", "processing", "pending_confirmation"}},
+		"_id":             bson.M{"$ne": job.ID}, // exclude self
+	})
+	if err == nil && count > 0 {
+		log.Printf("[SKIP] Another active job already exists for voter %s. Failing this duplicate.", job.VoterEmail)
+		return updateVoteJobFailure(job.ID, fmt.Errorf("duplicate vote job detected"))
+	}
+
 	// --- SAFETY PRE-FLIGHT CHECK ---
 	// Check if the voter has already voted via a call (free) before sending a transaction (paid).
 	// This avoids "execution reverted: Error: You cannot double vote" on the blockchain.
