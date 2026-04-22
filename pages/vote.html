@@ -334,16 +334,27 @@
         if (statusResp.ok) {
           const sData = await statusResp.json();
           if (sData?.data?.hasVoted) {
-            const btn = document.getElementById('castVoteBtn');
-            btn.disabled = true;
-            btn.innerHTML = 'Vote Cast &check;';
-            btn.style.background = 'var(--text-muted)';
-            btn.style.cursor = 'not-allowed';
-            UI.toast('You have already cast your vote for this election.', 'info');
+            setVotedState();
           }
         }
       } catch (err) {
         console.error(err);
+      }
+    }
+
+    function setVotedState() {
+      const btn = document.getElementById('castVoteBtn');
+      if (btn && btn.style.display !== 'none') {
+        btn.style.display = 'none'; 
+        const msg = document.createElement('div');
+        msg.id = 'permanentVotedMsg';
+        msg.innerHTML = '<b style="color:var(--success-color);">&#10004; Vote Cast Permanently</b>';
+        msg.style.padding = '1rem';
+        msg.style.background = 'rgba(0,0,0,0.2)';
+        msg.style.borderRadius = '8px';
+        msg.style.textAlign = 'center';
+        msg.style.marginTop = '10px';
+        btn.parentNode.appendChild(msg);
       }
     }
 
@@ -541,8 +552,8 @@
 
           await pollVoteJob(jobId);
           modal.classList.remove('active');
-          // Disable voting button
-          document.getElementById('castVoteBtn').disabled = true;
+
+          setVotedState();
           document.getElementById('castVoteBtn').innerHTML = 'Vote Cast &check;';
           document.getElementById('castVoteBtn').style.background = 'var(--text-muted)';
         } else {

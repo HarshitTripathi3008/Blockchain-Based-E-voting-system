@@ -375,6 +375,18 @@ func processVoteJob(job *VoteJobDocument) error {
 	}
 
 	go trackVoteMining(job.ID, job.ElectionAddress, job.VoterEmail, tx)
+
+	// PERMANENT LOCK: Update voter status in DB as soon as transaction is SUBMITTED
+	// this makes the "hasVoted" check true even before the tx is mined.
+	if voterCollection != nil {
+		vCtx, vCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer vCancel()
+		_, _ = voterCollection.UpdateOne(vCtx,
+			bson.M{"email": job.VoterEmail, "registrations.election_address": job.ElectionAddress},
+			bson.M{"$set": bson.M{"registrations.$.status": "Voted"}},
+		)
+	}
+
 	return nil
 }
 
