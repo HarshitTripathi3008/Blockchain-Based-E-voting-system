@@ -1,4 +1,4 @@
-﻿package controllers
+package controllers
 
 import (
 	"context"
@@ -286,7 +286,7 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 
 	// Wait for mining and fetch deployed address asynchronously
 	go func() {
-		ctx2, cancel2 := context.WithTimeout(context.Background(), 120*time.Second) // generous timeout
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 600*time.Second) // generous 10 Min timeout
 		defer cancel2()
 		receipt, werr := bind.WaitMined(ctx2, client, tx)
 		if werr != nil {
@@ -438,7 +438,7 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 
 	// Wait for mining asynchronously
 	go func() {
-		ctx2, cancel2 := context.WithTimeout(context.Background(), 120*time.Second) // 2 Min timeout
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 600*time.Second) // 10 Min timeout
 		defer cancel2()
 		receipt, werr := bind.WaitMined(ctx2, client, tx)
 		if werr != nil {

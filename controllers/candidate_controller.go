@@ -167,7 +167,7 @@ func RegisterCandidate(w http.ResponseWriter, r *http.Request) {
 
 	// Wait for mining in the background to avoid 30s+ HTTP timeouts
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second) // generous timeout for Sepolia
+		ctx, cancel := context.WithTimeout(context.Background(), 600*time.Second) // generous 10 min timeout for Sepolia
 		defer cancel()
 		receipt, werr := bind.WaitMined(ctx, client, tx)
 		if werr != nil {
