@@ -128,17 +128,18 @@ func getAuth(client *ethclient.Client) (*bind.TransactOpts, error) {
 		return nil, fmt.Errorf("failed to create transactor: %w", err)
 	}
 
-	// Fetch network suggested gas price and bump by 20% to speed up chained transactions (rapid votes)
+	// Fetch network suggested gas price and bump by 50% to prevent stuck txns on Sepolia
 	if client != nil {
 		gasPrice, errGas := client.SuggestGasPrice(context.Background())
 		if errGas == nil {
-			bumpedGas := new(big.Int).Mul(gasPrice, big.NewInt(120))
+			bumpedGas := new(big.Int).Mul(gasPrice, big.NewInt(150))
 			bumpedGas.Div(bumpedGas, big.NewInt(100))
 			auth.GasPrice = bumpedGas
 		}
 	}
 
-	// optional GAS_LIMIT override (env expects decimal integer)
+	// GAS_LIMIT override from env; fallback to a safe 500000 if not set
+	auth.GasLimit = 500000 // safe default for all Sepolia contract calls
 	if gl := strings.TrimSpace(os.Getenv("GAS_LIMIT")); gl != "" {
 		gl = strings.Trim(gl, `"'`)
 		if glBig, ok := new(big.Int).SetString(gl, 10); ok && glBig.Sign() > 0 {
