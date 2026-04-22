@@ -310,7 +310,7 @@
       const voter = getVoterEmail();
 
       if (!address || !voter) {
-        UI.toast('Session invalid. Redirecting...', 'error');
+
         setTimeout(() => window.location.href = 'voter_login.html', 1500);
         return;
       }
@@ -494,7 +494,6 @@
         }
 
         if (state === 'submitted' || state === 'processing' || state === 'queued' || state === 'pending_confirmation') {
-          UI.showLoader(`Vote queued... checking blockchain status (${attempt + 1}/${maxAttempts})`);
           await wait(2000);
           continue;
         }
@@ -510,7 +509,6 @@
 
       submitBtn.disabled = true;
       submitBtn.style.opacity = 0.7;
-      UI.showLoader('Queueing vote for blockchain submission...');
 
       try {
         const payload = {
@@ -542,7 +540,6 @@
           }
 
           await pollVoteJob(jobId);
-          UI.toast('Vote Cast Successfully!', 'success');
           modal.classList.remove('active');
           // Disable voting button
           document.getElementById('castVoteBtn').disabled = true;
@@ -554,7 +551,7 @@
 
       } catch (err) {
         console.error(err);
-        UI.toast('Error: ' + err.message, 'error');
+
       } finally {
         submitBtn.disabled = false;
         submitBtn.style.opacity = 1;
@@ -584,14 +581,14 @@
           .then(r => r.json())
           .then(json => {
             if (json.status === 'success') {
-              UI.toast('ID Card sent to email!', 'success');
+              // success
             } else {
-              UI.toast(json.message || 'Failed to send email', 'error');
+              // fail
             }
           })
           .catch(e => {
             console.error(e);
-            UI.toast('Network error', 'error');
+
           })
           .finally(() => {
             btn.textContent = "Email ID Card";

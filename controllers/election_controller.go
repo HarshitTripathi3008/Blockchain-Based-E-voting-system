@@ -94,38 +94,17 @@ func GetVoterStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Check Blockchain Directly (Source of Truth for mined votes)
-	client, err := getClient()
-	if err == nil {
-		contract, err := bindings.NewElection(common.HexToAddress(address), client)
-		if err == nil {
-			callOpts := &bind.CallOpts{Context: r.Context(), Pending: false}
-			voted, err := contract.HasVoted(callOpts, email)
-			if err == nil && voted {
-				respondJSON(w, http.StatusOK, BlockchainResponse{
-					Status:  "success",
-					Message: "Voter has already voted (Confirmed on-chain)",
-					Data: map[string]interface{}{
-						"hasVoted": true,
-						"status":   "mined",
-					},
-				})
-				return
-			}
-		}
-	}
-
-	// 3. Fallback: Check Voter registration status in DB (permanent)
+	// 2. Check Voter registration status in DB (permanent)
 	var voter Voter
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err = voterCollection.FindOne(ctx, bson.M{"email": email, "registrations.election_address": address}).Decode(&voter)
+	err := voterCollection.FindOne(ctx, bson.M{"email": email, "registrations.election_address": address}).Decode(&voter)
 	if err == nil {
 		for _, reg := range voter.Registrations {
 			if strings.EqualFold(reg.ElectionAddress, address) && reg.Status == "Voted" {
 				respondJSON(w, http.StatusOK, BlockchainResponse{
 					Status:  "success",
-					Message: "Voter has already voted (DB record)",
+					Message: "Voter has already voted",
 					Data: map[string]interface{}{
 						"hasVoted": true,
 						"status":   "mined",
@@ -659,26 +638,12 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 	// 2. INSTANT DB CHECK: Check if a vote is currently in our processing queue
 	existingJob, _ := getVoteJobByVoter(addrNorm, req.VoterEmail)
 	if existingJob != nil && existingJob.Status != "failed" {
-		msg := "Your vote is currently being processed or has been recorded."
+		msg := "You have already voted in this election."
 		if existingJob.Status == "queued" || existingJob.Status == "submitted" {
 			msg = "Your vote is currently being processed on the blockchain. Please wait."
 		}
 		respondError(w, http.StatusBadRequest, msg)
 		return
-	}
-
-	// 3. ON-CHAIN CHECK: Query the blockchain directly (Safety check before queuing)
-	client, err := getClient()
-	if err == nil {
-		contract, err := bindings.NewElection(common.HexToAddress(addrNorm), client)
-		if err == nil {
-			callOpts := &bind.CallOpts{Context: r.Context(), Pending: false}
-			votedOnChain, err := contract.HasVoted(callOpts, req.VoterEmail)
-			if err == nil && votedOnChain {
-				respondError(w, http.StatusBadRequest, "Blockchain Confirmation: You have already cast your vote.")
-				return
-			}
-		}
 	}
 
 	job, err := enqueueVoteJob(addrNorm, req.CandidateID, req.VoterEmail)
