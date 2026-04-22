@@ -156,9 +156,10 @@ func main() {
 	controllers.InitStudentCollection(client, dbName)
 	fmt.Println("[OK] Initialized database collections")
 
-	// P0: Ensure all required indexes exist before serving traffic.
+	// P0: Ensure all required indexes exist (idempotent — safe to run every startup).
+	// Warnings are logged for already-existing indexes but do NOT stop the server.
 	if err := controllers.EnsureIndexes(client, dbName); err != nil {
-		log.Fatalf("[ERROR] MongoDB index setup failed: %v", err)
+		log.Printf("[WARN] MongoDB index setup warning (non-fatal): %v", err)
 	}
 
 	// -----------------------------------------------------

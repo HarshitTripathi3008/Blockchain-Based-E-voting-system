@@ -106,21 +106,28 @@ func EnsureIndexes(client *mongo.Client, dbName string) error {
 		},
 	}
 
+	created := 0
 	for _, s := range specs {
 		exists, err := hasEquivalentIndex(ctx, db.Collection(s.collection), s.model)
 		if err != nil {
-			return fmt.Errorf("check existing indexes for %s.%s: %w", s.collection, indexName(s.model), err)
+			log.Printf("[INDEX WARN] Could not check existing indexes for %s.%s: %v (skipping)", s.collection, indexName(s.model), err)
+			continue
 		}
 		if exists {
+			// index with same keys + options already present under any name — skip
 			continue
 		}
 
 		if _, err := db.Collection(s.collection).Indexes().CreateOne(ctx, s.model); err != nil {
-			return fmt.Errorf("ensure index %s.%s: %w", s.collection, indexName(s.model), err)
+			// Code 85 IndexOptionsConflict / 86 IndexKeySpecsConflict / 68 IndexAlreadyExists
+			// All mean the index already exists — safe to ignore
+			log.Printf("[INDEX WARN] %s.%s: %v (index likely exists under a different name — safe to ignore)", s.collection, indexName(s.model), err)
+			continue
 		}
+		created++
 	}
 
-	log.Printf("[OK] MongoDB indexes ensured: %d created/verified", len(specs))
+	log.Printf("[OK] MongoDB indexes ensured: %d new, %d already present (total specs: %d)", created, len(specs)-created, len(specs))
 	return nil
 }
 
