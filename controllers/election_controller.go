@@ -114,6 +114,18 @@ func getAuth() (*bind.TransactOpts, error) {
 		return nil, fmt.Errorf("failed to create transactor: %w", err)
 	}
 
+	// Fetch network suggested gas price and bump by 20% to speed up chained transactions (rapid votes)
+	client, errClient := getClient()
+	if errClient == nil {
+		defer client.Close()
+		gasPrice, errGas := client.SuggestGasPrice(context.Background())
+		if errGas == nil {
+			bumpedGas := new(big.Int).Mul(gasPrice, big.NewInt(120))
+			bumpedGas.Div(bumpedGas, big.NewInt(100))
+			auth.GasPrice = bumpedGas
+		}
+	}
+
 	// optional GAS_LIMIT override (env expects decimal integer)
 	if gl := strings.TrimSpace(os.Getenv("GAS_LIMIT")); gl != "" {
 		gl = strings.Trim(gl, `"'`)
