@@ -1,4 +1,4 @@
-﻿package util
+package util
 
 import (
 	"context"
@@ -51,6 +51,26 @@ func Deploy(ctx context.Context, rpc string, abiPath string, binPath string, pri
 	if err != nil {
 		return common.Address{}, nil, fmt.Errorf("failed to create transactor: %w", err)
 	}
+
+	// Dynamic Gas Strategy for Deployment
+	head, errHead := client.HeaderByNumber(ctx, nil)
+	if errHead == nil && head.BaseFee != nil {
+		tip, _ := client.SuggestGasTipCap(ctx)
+		if tip == nil {
+			tip = big.NewInt(2500000000)
+		} else {
+			tip = new(big.Int).Mul(tip, big.NewInt(2)) // 2x tip
+		}
+		maxFee := new(big.Int).Add(new(big.Int).Mul(head.BaseFee, big.NewInt(2)), tip)
+		auth.GasTipCap = tip
+		auth.GasFeeCap = maxFee
+	} else {
+		gp, _ := client.SuggestGasPrice(ctx)
+		if gp != nil {
+			auth.GasPrice = new(big.Int).Mul(gp, big.NewInt(2)) // 2x legacy
+		}
+	}
+	auth.GasLimit = 8000000 // High limit for contract deployment
 
 	// Read and parse ABI
 	abiBytes, err := os.ReadFile(abiPath)
