@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"mime/multipart"
 	"net/http"
@@ -20,7 +21,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 
 	"MAJOR-PROJECT/bindings"
@@ -102,38 +102,19 @@ var otpCollection *mongo.Collection
 // Initialize collections
 func InitVoterCollection(client *mongo.Client, dbName string) {
 	voterCollection = client.Database(dbName).Collection("voters")
-
-	// Create fast lookup index for extreme concurrency
-	indexModel := mongo.IndexModel{Keys: bson.M{"email": 1}, Options: options.Index().SetUnique(true)}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_, _ = voterCollection.Indexes().CreateOne(ctx, indexModel)
-
-	fmt.Println("[OK] Initialized voters collection with indexes")
+	fmt.Println("[OK] Initialized voters collection")
 }
 
 func InitOTPCollection(client *mongo.Client, dbName string) {
 	otpCollection = client.Database(dbName).Collection("otps")
-
-	indexModel := mongo.IndexModel{Keys: bson.M{"email": 1}}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_, _ = otpCollection.Indexes().CreateOne(ctx, indexModel)
-
-	fmt.Println("[OK] Initialized OTP collection with indexes")
+	fmt.Println("[OK] Initialized OTP collection")
 }
 
 var studentCollection *mongo.Collection
 
 func InitStudentCollection(client *mongo.Client, dbName string) {
 	studentCollection = client.Database(dbName).Collection("students")
-
-	indexModel := mongo.IndexModel{Keys: bson.M{"email": 1}, Options: options.Index().SetUnique(true)}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_, _ = studentCollection.Indexes().CreateOne(ctx, indexModel)
-
-	fmt.Println("[OK] Initialized Students collection with indexes")
+	fmt.Println("[OK] Initialized Students collection")
 }
 
 func withVoterCORS(w http.ResponseWriter) {
@@ -888,45 +869,7 @@ func GetVoterElections(w http.ResponseWriter, r *http.Request) {
 
 // sendEmail sends an HTML email via Hostinger SMTP (Asynchronously)
 func sendEmail(to, subject, htmlBody string) error {
-	select {
-	case emailQueue <- emailJob{To: to, Subject: subject, HTMLBody: htmlBody}:
-		// queued successfully
-		return nil
-	default:
-		// Queue full, fallback to synchronous (or you could return an error)
-		fmt.Printf("[WARN] Email queue full, sending synchronously to: %s\n", to)
-		return sendEmailWithAttachment(to, subject, htmlBody, "", nil)
-	}
-}
-
-// Global email queue
-type emailJob struct {
-	To             string
-	Subject        string
-	HTMLBody       string
-	Filename       string
-	AttachmentData []byte
-}
-
-var emailQueue = make(chan emailJob, 5000) // buffer 5000 emails to prevent API timeout on extreme bulk imports
-
-func init() {
-	go emailWorker()
-}
-
-func emailWorker() {
-	// Respect custom SMTP limits (e.g., max 2-3 emails per second)
-	ticker := time.NewTicker(400 * time.Millisecond)
-	for job := range emailQueue {
-		<-ticker.C // throttle
-		err := sendEmailWithAttachment(job.To, job.Subject, job.HTMLBody, job.Filename, job.AttachmentData)
-		if err != nil {
-			fmt.Printf("[ERROR] Background email worker failed for %s: %v\n", job.To, err)
-			// Simple retry logic could go here
-		} else {
-			fmt.Printf("[OK] Background email sent to %s\n", job.To)
-		}
-	}
+	return enqueueEmailJob(to, subject, htmlBody, "", nil)
 }
 
 // sendEmailWithAttachment sends an HTML email with an optional PDF attachment via Hostinger SMTP
@@ -938,7 +881,7 @@ func sendEmailWithAttachment(to, subject, htmlBody, filename string, attachmentD
 	// smtpPass := os.Getenv("SMTP_PASS")
 	// senderEmail := os.Getenv("SENDER_EMAIL")
 	// senderName := os.Getenv("SENDER_NAME")
-	// 
+	//
 	// if smtpHost == "" {
 	// 	smtpHost = "smtp.hostinger.com"
 	// }
@@ -1147,24 +1090,32 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	go sendResultMailsBackground(req)
+
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(VoterResponse{
+		Status:  "queued",
+		Message: "Result emails are being sent in the background",
+	})
+}
+
+func sendResultMailsBackground(req VoterRequest) {
 	// AUDIT LOG
 	go LogAction(req.ElectionAddress, "ELECTION_ENDED", "System", fmt.Sprintf("Election '%s' ended. Winner: %s", req.ElectionName, req.WinnerCandidate))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	cursor, err := voterCollection.Find(ctx, bson.M{"registrations.election_address": req.ElectionAddress})
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Error fetching voters: " + err.Error()})
+		log.Printf("ResultMail: failed to fetch voters for %s: %v", req.ElectionAddress, err)
 		return
 	}
 	defer cursor.Close(ctx)
 
 	var voters []Voter
 	if err := cursor.All(ctx, &voters); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Error decoding voters: " + err.Error()})
+		log.Printf("ResultMail: failed to decode voters for %s: %v", req.ElectionAddress, err)
 		return
 	}
 
@@ -1175,7 +1126,6 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Printf("ResultMail: failed to connect to eth node: %v\n", err)
 	} else {
-		defer client.Close()
 		ethAddr := common.HexToAddress(req.ElectionAddress)
 		contract, err := bindings.NewElection(ethAddr, client)
 		if err != nil {
@@ -1238,15 +1188,11 @@ func ResultMail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(sendErrs) == 0 {
-		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "success", Message: "mails sent successfully"})
+		log.Printf("ResultMail: queued result emails successfully for election %s (%d voters)", req.ElectionAddress, len(voters))
 		return
 	}
 
-	_ = json.NewEncoder(w).Encode(VoterResponse{
-		Status:  "partial",
-		Message: fmt.Sprintf("mails sent with %d errors", len(sendErrs)),
-		Data:    map[string]interface{}{"mailErrors": sendErrs},
-	})
+	log.Printf("ResultMail: queued result emails with %d immediate queue errors for election %s: %v", len(sendErrs), req.ElectionAddress, sendErrs)
 }
 
 // ApproveVoter Endpoint

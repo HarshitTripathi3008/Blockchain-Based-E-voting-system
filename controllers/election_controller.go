@@ -17,14 +17,20 @@ import (
 	"MAJOR-PROJECT/bindings"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gorilla/mux"
+)
+
+var (
+	l2ClientMu            sync.Mutex
+	l2ClientShared        *ethclient.Client
+	verifiedContractAddrs sync.Map
 )
 
 // Candidate is the representation returned to the client
@@ -65,6 +71,13 @@ func respondError(w http.ResponseWriter, status int, message string) {
 
 // getClient connects to L2_NODE_URL (with timeout)
 func getClient() (*ethclient.Client, error) {
+	l2ClientMu.Lock()
+	defer l2ClientMu.Unlock()
+
+	if l2ClientShared != nil {
+		return l2ClientShared, nil
+	}
+
 	nodeURL := strings.TrimSpace(os.Getenv("L2_NODE_URL"))
 	nodeURL = strings.Trim(nodeURL, `"'`)
 	if nodeURL == "" {
@@ -83,12 +96,13 @@ func getClient() (*ethclient.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to ethereum node %q: %w", nodeURL, err)
 	}
-	return client, nil
+	l2ClientShared = client
+	return l2ClientShared, nil
 }
 
 // getAuth creates a transact opts using EVM_PRIVATE_KEY and L2_CHAIN_ID.
-// It requires a valid ethclient to fetch the current block nonce safely.
-func getAuth() (*bind.TransactOpts, error) {
+// It optionally uses the shared client to fetch a suggested gas price once per request.
+func getAuth(client *ethclient.Client) (*bind.TransactOpts, error) {
 	// 1. Get Private Key
 	priv := strings.TrimSpace(os.Getenv("EVM_PRIVATE_KEY"))
 	if priv == "" {
@@ -115,9 +129,7 @@ func getAuth() (*bind.TransactOpts, error) {
 	}
 
 	// Fetch network suggested gas price and bump by 20% to speed up chained transactions (rapid votes)
-	client, errClient := getClient()
-	if errClient == nil {
-		defer client.Close()
+	if client != nil {
 		gasPrice, errGas := client.SuggestGasPrice(context.Background())
 		if errGas == nil {
 			bumpedGas := new(big.Int).Mul(gasPrice, big.NewInt(120))
@@ -145,34 +157,147 @@ func getAuth() (*bind.TransactOpts, error) {
 	return auth, nil
 }
 
+func ensureContractVerified(client *ethclient.Client, addr common.Address, label string) error {
+	cacheKey := strings.ToLower(addr.Hex())
+	if _, ok := verifiedContractAddrs.Load(cacheKey); ok {
+		return nil
+	}
+
+	code, err := client.CodeAt(context.Background(), addr, nil)
+	if err != nil {
+		return fmt.Errorf("failed to inspect %s contract: %w", label, err)
+	}
+	if len(code) == 0 {
+		return fmt.Errorf("no contract code at %s address %s", label, addr.Hex())
+	}
+
+	verifiedContractAddrs.Store(cacheKey, true)
+	return nil
+}
+
+func loadManifestoMap(ctx context.Context, electionAddress string) map[string]string {
+	if candidateCollection == nil {
+		return nil
+	}
+
+	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	cursor, err := candidateCollection.Find(queryCtx, bson.M{"electionAddress": electionAddress})
+	if err != nil {
+		log.Printf("loadManifestoMap: Find error for %s: %v", electionAddress, err)
+		return nil
+	}
+	defer cursor.Close(queryCtx)
+
+	var docs []CandidateDocument
+	if err := cursor.All(queryCtx, &docs); err != nil {
+		log.Printf("loadManifestoMap: decode error for %s: %v", electionAddress, err)
+		return nil
+	}
+
+	manifestoMap := make(map[string]string, len(docs))
+	for _, doc := range docs {
+		if doc.Email != "" && doc.ManifestoUrl != "" {
+			manifestoMap[doc.Email] = doc.ManifestoUrl
+		}
+	}
+	return manifestoMap
+}
+
 // Global Nonce Manager for High Concurrency
 var (
 	nonceMutex sync.Mutex
 	lastNonce  uint64
+	nonceInit  bool
 )
 
-// getNextNonce guarantees a strictly increasing nonce for the admin wallet, even during extreme concurrency.
-func getNextNonce(client *ethclient.Client, address common.Address) *big.Int {
-	nonceMutex.Lock()
-	defer nonceMutex.Unlock()
-
+func resyncNonce(client *ethclient.Client, address common.Address) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Fetch pending nonce from the network
 	pendingNonce, err := client.PendingNonceAt(ctx, address)
 	if err != nil {
-		log.Printf("[WARN] Failed to fetch pending nonce for %s: %v. Using last known nonce.", address.Hex(), err)
-		pendingNonce = lastNonce
+		return err
 	}
 
-	// If our internal counter is higher (meaning we have unbroadcasted local txs), use it.
-	if lastNonce >= pendingNonce {
-		pendingNonce = lastNonce + 1
-	}
-
+	nonceMutex.Lock()
+	defer nonceMutex.Unlock()
 	lastNonce = pendingNonce
-	return new(big.Int).SetUint64(pendingNonce)
+	nonceInit = true
+	return nil
+}
+
+// getNextNonce guarantees a strictly increasing nonce for the admin wallet, even during extreme concurrency.
+func getNextNonce(client *ethclient.Client, address common.Address) (*big.Int, error) {
+	nonceMutex.Lock()
+	if !nonceInit {
+		nonceMutex.Unlock()
+		if err := resyncNonce(client, address); err != nil {
+			return nil, fmt.Errorf("initialize nonce for %s: %w", address.Hex(), err)
+		}
+		nonceMutex.Lock()
+	}
+
+	next := lastNonce
+	lastNonce++
+	nonceMutex.Unlock()
+
+	return new(big.Int).SetUint64(next), nil
+}
+
+func isNonceError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "nonce too low") ||
+		strings.Contains(msg, "nonce too high") ||
+		strings.Contains(msg, "replacement transaction underpriced") ||
+		strings.Contains(msg, "already known")
+}
+
+func submitL2Tx(
+	client *ethclient.Client,
+	makeAuth func() (*bind.TransactOpts, error),
+	submit func(*bind.TransactOpts) (*types.Transaction, error),
+) (*types.Transaction, error) {
+	auth, err := makeAuth()
+	if err != nil {
+		return nil, err
+	}
+
+	nonce, err := getNextNonce(client, auth.From)
+	if err != nil {
+		return nil, err
+	}
+	auth.Nonce = nonce
+
+	tx, err := submit(auth)
+	if err == nil {
+		return tx, nil
+	}
+	if !isNonceError(err) {
+		return nil, err
+	}
+
+	log.Printf("[WARN] Nonce submission error for %s: %v. Resyncing nonce and retrying once.", auth.From.Hex(), err)
+	if resyncErr := resyncNonce(client, auth.From); resyncErr != nil {
+		return nil, fmt.Errorf("submit tx failed with nonce error %v and nonce resync failed: %w", err, resyncErr)
+	}
+
+	authRetry, authErr := makeAuth()
+	if authErr != nil {
+		return nil, authErr
+	}
+	nonceRetry, nonceErr := getNextNonce(client, authRetry.From)
+	if nonceErr != nil {
+		return nil, nonceErr
+	}
+	authRetry.Nonce = nonceRetry
+
+	return submit(authRetry)
 }
 
 // normalizeFactoryAddr returns a validated, 0x-prefixed factory address string and the parsed common.Address.
@@ -238,15 +363,6 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to connect to ethereum node")
 		return
 	}
-	defer client.Close()
-
-	auth, err := getAuth()
-	if err != nil {
-		log.Printf("CreateElection: getAuth error: %v", err)
-		respondError(w, http.StatusInternalServerError, "failed to create transaction signer")
-		return
-	}
-	auth.Nonce = getNextNonce(client, auth.From) // Set nonce here after client is available
 
 	// Validate factory address early
 	factoryRaw, factoryAddr, err := normalizeFactoryAddr()
@@ -256,16 +372,9 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// quick: check code at factory address
-	code, cerr := client.CodeAt(context.Background(), factoryAddr, nil)
-	if cerr != nil {
-		log.Printf("CreateElection: CodeAt error for %s: %v", factoryRaw, cerr)
-		respondError(w, http.StatusInternalServerError, "failed to inspect factory contract")
-		return
-	}
-	if len(code) == 0 {
-		log.Printf("CreateElection: no contract code at factory address %s", factoryRaw)
-		respondError(w, http.StatusInternalServerError, "no contract code at configured L2_FACTORY_CONTRACT_ADDRESS")
+	if err := ensureContractVerified(client, factoryAddr, "factory"); err != nil {
+		log.Printf("CreateElection: factory verification error for %s: %v", factoryRaw, err)
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -278,7 +387,15 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Submit CreateElection tx
-	tx, err := factory.CreateElection(auth, req.CompanyEmail, req.ElectionName, req.ElectionDescription)
+	tx, err := submitL2Tx(
+		client,
+		func() (*bind.TransactOpts, error) {
+			return getAuth(client)
+		},
+		func(auth *bind.TransactOpts) (*types.Transaction, error) {
+			return factory.CreateElection(auth, req.CompanyEmail, req.ElectionName, req.ElectionDescription)
+		},
+	)
 	if err != nil {
 		log.Printf("CreateElection: transact failed: %v", err)
 		respondError(w, http.StatusInternalServerError, "failed to create election on blockchain: "+err.Error())
@@ -394,77 +511,33 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 
 	// MFA CHECK (Commented out)
 	/*
-	if ok := VerifyAndDeleteOTP(req.VoterEmail, req.OTP); !ok {
-		respondError(w, http.StatusUnauthorized, "Invalid or expired OTP")
-		return
-	}
+		if ok := VerifyAndDeleteOTP(req.VoterEmail, req.OTP); !ok {
+			respondError(w, http.StatusUnauthorized, "Invalid or expired OTP")
+			return
+		}
 	*/
 
-	client, err := getClient()
+	job, err := enqueueVoteJob(addrNorm, req.CandidateID, req.VoterEmail)
 	if err != nil {
-		log.Printf("VoteCandidate: getClient error: %v", err)
-		respondError(w, http.StatusInternalServerError, "failed to connect to ethereum node")
-		return
-	}
-	defer client.Close()
-
-	auth, err := getAuth()
-	if err != nil {
-		log.Printf("VoteCandidate: getAuth error: %v", err)
-		respondError(w, http.StatusInternalServerError, "failed to create transaction signer")
-		return
-	}
-	auth.Nonce = getNextNonce(client, auth.From)
-
-	contractAddr := common.HexToAddress(addrNorm)
-	// check contract code present
-	code, cerr := client.CodeAt(context.Background(), contractAddr, nil)
-	if cerr != nil {
-		log.Printf("VoteCandidate: CodeAt error for %s: %v", addrNorm, cerr)
-		respondError(w, http.StatusInternalServerError, "failed to inspect contract code")
-		return
-	}
-	if len(code) == 0 {
-		log.Printf("VoteCandidate: no contract code at address %s", addrNorm)
-		respondError(w, http.StatusBadRequest, "no contract code at given election address")
+		log.Printf("VoteCandidate: enqueue error: %v", err)
+		respondError(w, http.StatusInternalServerError, "failed to queue vote transaction")
 		return
 	}
 
-	contract, err := bindings.NewElection(contractAddr, client)
-	if err != nil {
-		log.Printf("VoteCandidate: binding error: %v", err)
-		respondError(w, http.StatusInternalServerError, "failed to bind to election contract")
-		return
+	message := "vote transaction queued for blockchain submission"
+	if job.Status != "queued" {
+		message = "vote transaction already queued"
 	}
 
-	tx, err := contract.Vote(auth, big.NewInt(req.CandidateID), req.VoterEmail)
-	if err != nil {
-		log.Printf("VoteCandidate: vote transact error: %v", err)
-		respondError(w, http.StatusInternalServerError, "failed to submit vote transaction: "+err.Error())
-		return
-	}
-
-	respondJSON(w, http.StatusOK, BlockchainResponse{
+	respondJSON(w, http.StatusAccepted, BlockchainResponse{
 		Status:  "success",
-		Message: "vote transaction submitted to the blockchain",
-		Data:    map[string]interface{}{"txHash": tx.Hash().Hex()},
+		Message: message,
+		Data: map[string]interface{}{
+			"jobId":       job.ID.Hex(),
+			"txHash":      job.TxHash,
+			"queueStatus": job.Status,
+		},
 	})
-
-	// Wait for mining asynchronously
-	go func() {
-		ctx2, cancel2 := context.WithTimeout(context.Background(), 600*time.Second) // 10 Min timeout
-		defer cancel2()
-		receipt, werr := bind.WaitMined(ctx2, client, tx)
-		if werr != nil {
-			log.Printf("[ALCHEMY] Vote wait error: %v", werr)
-		} else if receipt.Status != 1 {
-			log.Printf("[ALCHEMY] Vote transaction reverted for tx %s", tx.Hash().Hex())
-		} else {
-			log.Printf("[ALCHEMY] Vote mined successfully in block %v", receipt.BlockNumber)
-			// AUDIT LOG
-			go LogAction(addrNorm, "VOTE_CAST", req.VoterEmail, "Voted successfully (mined)")
-		}
-	}()
 }
 
 // GetElectionCandidates - improved and robust
@@ -581,18 +654,10 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 			tryDBFallbackWithMessage(w, addrStr, "failed to connect to ethereum node while resolving email")
 			return
 		}
-		defer client.Close()
 
-		// quick check factory code presence too
-		fcode, ferrC := client.CodeAt(context.Background(), factoryAddr, nil)
-		if ferrC != nil {
-			log.Printf("GetElectionCandidates: CodeAt error for factory %s: %v\n", factoryRaw, ferrC)
-			tryDBFallbackWithMessage(w, addrStr, "failed to inspect factory contract while resolving email")
-			return
-		}
-		if len(fcode) == 0 {
-			log.Printf("GetElectionCandidates: no contract code at factory address %s\n", factoryRaw)
-			tryDBFallbackWithMessage(w, addrStr, "no factory contract code at configured address")
+		if err := ensureContractVerified(client, factoryAddr, "factory"); err != nil {
+			log.Printf("GetElectionCandidates: factory verification error for %s: %v\n", factoryRaw, err)
+			tryDBFallbackWithMessage(w, addrStr, err.Error())
 			return
 		}
 
@@ -635,6 +700,12 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cacheID := strings.ToLower(addrStr)
+	if cached, ok := getCachedValue(cacheKey("election", cacheID, "candidates")); ok {
+		respondJSON(w, http.StatusOK, cached)
+		return
+	}
+
 	// Connect to node
 	client, err := getClient()
 	if err != nil {
@@ -642,19 +713,11 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 		tryDBFallbackWithMessage(w, addrStr, "failed to connect to ethereum node: "+err.Error())
 		return
 	}
-	defer client.Close()
 
-	// Check whether there is code at this address (if none -> no contract deployed)
 	addr := common.HexToAddress(addrStr)
-	code, err := client.CodeAt(r.Context(), addr, nil)
-	if err != nil {
-		log.Printf("GetElectionCandidates: CodeAt error for %s: %v\n", addrStr, err)
-		tryDBFallbackWithMessage(w, addrStr, "failed to inspect contract code: "+err.Error())
-		return
-	}
-	if len(code) == 0 {
-		log.Printf("GetElectionCandidates: no contract code at address %s\n", addrStr)
-		tryDBFallbackWithMessage(w, addrStr, "no contract code at given address")
+	if err := ensureContractVerified(client, addr, "election"); err != nil {
+		log.Printf("GetElectionCandidates: contract verification error for %s: %v\n", addrStr, err)
+		tryDBFallbackWithMessage(w, addrStr, err.Error())
 		return
 	}
 
@@ -675,6 +738,7 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 	}
 
 	n := numCandidates.Int64()
+	manifestoMap := loadManifestoMap(r.Context(), addrStr)
 	candidates := make([]Candidate, 0, n)
 	for i := int64(0); i < n; i++ {
 		name, desc, imgHash, voteCount, email, err := contract.GetCandidate(callOpts, big.NewInt(i))
@@ -683,17 +747,9 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 			tryDBFallbackWithMessage(w, addrStr, fmt.Sprintf("failed to fetch candidate %d from chain: %v", i, err))
 			return
 		}
-		// merge manifesto from DB (inefficient loop but safe)
 		manifesto := ""
-		if candidateCollection != nil {
-			var doc CandidateDocument
-			if err := candidateCollection.FindOne(r.Context(), bson.M{"email": email, "electionAddress": addrStr}).Decode(&doc); err != nil {
-				if err != mongo.ErrNoDocuments {
-					log.Printf("GetElectionCandidates: manifesto lookup warning for %s: %v", email, err)
-				}
-			} else {
-				manifesto = doc.ManifestoUrl
-			}
+		if manifestoMap != nil {
+			manifesto = manifestoMap[email]
 		}
 
 		candidates = append(candidates, Candidate{
@@ -708,11 +764,13 @@ func GetElectionCandidates(w http.ResponseWriter, r *http.Request) {
 
 	// Return success with source = "onchain"
 	log.Printf("[SUCCESS] Successfully fetched %d candidates from blockchain for %s\n", len(candidates), addrStr)
-	respondJSON(w, http.StatusOK, map[string]interface{}{
+	payload := map[string]interface{}{
 		"status":     "success",
 		"source":     "onchain",
 		"candidates": candidates,
-	})
+	}
+	setCachedValue(cacheKey("election", cacheID, "candidates"), payload, 15*time.Second)
+	respondJSON(w, http.StatusOK, payload)
 }
 
 // tryDBFallbackWithMessage returns DB candidates and includes the provided message in result.detail
@@ -801,7 +859,6 @@ func GetElectionInfo(w http.ResponseWriter, r *http.Request) {
 		if ferr == nil {
 			client, cerr := getClient()
 			if cerr == nil {
-				defer client.Close()
 				factoryCaller, ferr2 := bindings.NewElectionFactCaller(factoryAddr, client)
 				if ferr2 == nil {
 					callOpts := &bind.CallOpts{Context: r.Context(), Pending: false}
@@ -823,6 +880,12 @@ func GetElectionInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = common.HexToAddress(rawAddr)
+
+	cacheID := strings.ToLower(rawAddr)
+	if cached, ok := getCachedValue(cacheKey("election", cacheID, "info")); ok {
+		respondJSON(w, http.StatusOK, cached)
+		return
+	}
 
 	// Use MongoDB for all dashboard stats with case-insensitive address matching
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -847,7 +910,7 @@ func GetElectionInfo(w http.ResponseWriter, r *http.Request) {
 	var meta ElectionMetadata
 	_ = metadataCollection.FindOne(ctx, bson.M{"election_address": addrRegex}).Decode(&meta)
 
-	respondJSON(w, http.StatusOK, BlockchainResponse{
+	payload := BlockchainResponse{
 		Status:  "success",
 		Message: "election info retrieved",
 		Data: map[string]interface{}{
@@ -857,7 +920,9 @@ func GetElectionInfo(w http.ResponseWriter, r *http.Request) {
 			"election_desc":    meta.ElectionDesc,
 			"election_addr":    rawAddr,
 		},
-	})
+	}
+	setCachedValue(cacheKey("election", cacheID, "info"), payload, 15*time.Second)
+	respondJSON(w, http.StatusOK, payload)
 }
 
 // UploadImage (disabled)

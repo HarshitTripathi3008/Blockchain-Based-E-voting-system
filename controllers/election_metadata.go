@@ -1,4 +1,4 @@
-﻿package controllers
+package controllers
 
 import (
 	"context"
@@ -77,6 +77,8 @@ func EnsureMetadata(electionAddr, name, desc string) {
 			ElectionDesc:    desc,
 		}
 		metadataCollection.InsertOne(ctx, newMeta)
+		invalidateCachePrefix(cacheKey("election", strings.ToLower(electionAddr)))
+		invalidateCachePrefix(cacheKey("elections"))
 		fmt.Printf("[OK] Created metadata for %s (Expires: %s)\n", electionAddr, newMeta.EndDate)
 
 	case nil:
@@ -95,6 +97,8 @@ func EnsureMetadata(electionAddr, name, desc string) {
 				update["$set"].(bson.M)["election_desc"] = desc
 			}
 			metadataCollection.UpdateOne(ctx, bson.M{"election_address": electionAddr}, update)
+			invalidateCachePrefix(cacheKey("election", strings.ToLower(electionAddr)))
+			invalidateCachePrefix(cacheKey("elections"))
 			fmt.Printf("[OK] Updated metadata details for %s\n", electionAddr)
 		}
 	}
@@ -190,6 +194,8 @@ func SetElectionDates(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "Failed to update dates")
 		return
 	}
+	invalidateCachePrefix(cacheKey("election", strings.ToLower(req.ElectionAddress)))
+	invalidateCachePrefix(cacheKey("elections"))
 
 	// Log it
 	go LogAction(req.ElectionAddress, "SCHEDULE_UPDATE", "Admin", fmt.Sprintf("Dates updated: %s to %s", start, end))
@@ -202,6 +208,12 @@ func GetElectionMetadata(w http.ResponseWriter, r *http.Request) {
 	writeJSONHeader(w)
 	vars := mux.Vars(r)
 	addr := vars["address"]
+	cacheID := strings.ToLower(addr)
+
+	if cached, ok := getCachedValue(cacheKey("election", cacheID, "metadata")); ok {
+		respondJSON(w, http.StatusOK, cached)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -214,10 +226,12 @@ func GetElectionMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{
+	payload := map[string]interface{}{
 		"status": "success",
 		"data":   meta,
-	})
+	}
+	setCachedValue(cacheKey("election", cacheID, "metadata"), payload, 15*time.Second)
+	respondJSON(w, http.StatusOK, payload)
 }
 
 // EndElection immediately stops an election
@@ -250,25 +264,19 @@ func EndElection(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "Failed to end election")
 		return
 	}
+	invalidateCachePrefix(cacheKey("election", strings.ToLower(addr)))
 
 	// --- L2 -> L1 ANCHORING LOGIC ---
 	// Start anchoring asynchronously to not block the API response
 	go func(electionAddress string) {
 		log.Printf("[ANCHOR] Starting archiving process for election %s", electionAddress)
 
-		// 1. Connect to L2 Client to read the results
-		l2Url := strings.TrimSpace(os.Getenv("L2_NODE_URL"))
-		if l2Url == "" {
-			log.Println("[ANCHOR ERROR] L2_NODE_URL not set")
-			return
-		}
-
-		l2Client, err := ethclient.Dial(l2Url)
+		// 1. Connect to the shared L2 client to read the results
+		l2Client, err := getClient()
 		if err != nil {
 			log.Printf("[ANCHOR ERROR] Failed to connect to L2: %v", err)
 			return
 		}
-		defer l2Client.Close()
 
 		l2Election, err := bindings.NewElection(common.HexToAddress(electionAddress), l2Client)
 		if err != nil {
@@ -386,6 +394,11 @@ func GetAllElections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if cached, ok := getCachedValue(cacheKey("elections", "all")); ok {
+		respondJSON(w, http.StatusOK, cached)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -404,11 +417,13 @@ func GetAllElections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{
+	payload := map[string]interface{}{
 		"status": "success",
 		"data":   elections,
 		"count":  len(elections),
-	})
+	}
+	setCachedValue(cacheKey("elections", "all"), payload, 15*time.Second)
+	respondJSON(w, http.StatusOK, payload)
 }
 
 // GetArchivedResults fetches all anchored election results directly from the L1 Sepolia contract

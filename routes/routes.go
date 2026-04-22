@@ -1,4 +1,4 @@
-﻿package routes
+package routes
 
 import (
 	"log"
@@ -45,6 +45,7 @@ func SetupRoutes() *mux.Router {
 	api.HandleFunc("/elections/{address}/details", controllers.GetElectionInfo).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/candidates", controllers.GetElectionCandidates).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/vote", controllers.VoteCandidate).Methods(http.MethodPost, http.MethodOptions)
+	api.HandleFunc("/vote-jobs/{jobId}", controllers.GetVoteJobStatus).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/voters", controllers.GetElectionVoters).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/dates", controllers.SetElectionDates).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/metadata", controllers.GetElectionMetadata).Methods(http.MethodGet, http.MethodOptions)

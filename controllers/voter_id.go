@@ -1,4 +1,4 @@
-﻿package controllers
+package controllers
 
 import (
 	"bytes"
@@ -186,13 +186,13 @@ func EmailVoterID(w http.ResponseWriter, r *http.Request) {
 	// Wait, sendEmail is in voter.go. I will update it to take `attachments ...AttachmentData`.
 	// Let's define a simple struct for passing data.
 
-	err = sendEmailWithAttachment(v.Email, subject, body, "VoterID.pdf", pdfBytes)
+	err = queueEmailWithAttachment(v.Email, subject, body, "VoterID.pdf", pdfBytes)
 	if err != nil {
 		http.Error(w, "Failed to send email: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.Write([]byte(`{"status":"success", "message":"Email sent successfully"}`))
+	w.Write([]byte(`{"status":"queued", "message":"Email queued successfully"}`))
 }
 
 // Helper to create PDF bytes

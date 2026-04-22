@@ -1,4 +1,4 @@
-﻿package controllers
+package controllers
 
 import (
 	"MAJOR-PROJECT/bindings"
@@ -14,7 +14,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -40,12 +39,6 @@ var companyCollection *mongo.Collection
 // Initialize company collection and unique email index
 func InitCompanyCollection(client *mongo.Client, dbName string) {
 	companyCollection = client.Database(dbName).Collection("companies")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, _ = companyCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{Key: "email", Value: 1}},
-		Options: options.Index().SetUnique(true),
-	})
 }
 
 func withCompanyCORS(w http.ResponseWriter) {
@@ -164,9 +157,6 @@ func AuthenticateCompany(w http.ResponseWriter, r *http.Request) {
 		// getClient is defined in election_controller.go and is in the same package
 		client, err := getClient()
 		if err == nil {
-			// ensure client closed
-			defer client.Close()
-
 			// Convert string address to common.Address and instantiate ElectionFact
 			contractAddress := common.HexToAddress(factoryAddrStr)
 			factory, err := bindings.NewElectionFact(contractAddress, client)
@@ -249,7 +239,23 @@ func ClearDatabase(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 5. Clear voter registrations (remove election links from voter accounts, but keep the voter accounts)
+	// 5. Async email jobs
+	if emailJobCollection != nil {
+		res, err := emailJobCollection.DeleteMany(ctx, bson.M{})
+		if err == nil {
+			deletedStats["email_jobs"] = res.DeletedCount
+		}
+	}
+
+	// 6. Async vote jobs
+	if voteJobCollection != nil {
+		res, err := voteJobCollection.DeleteMany(ctx, bson.M{})
+		if err == nil {
+			deletedStats["vote_jobs"] = res.DeletedCount
+		}
+	}
+
+	// 7. Clear voter registrations (remove election links from voter accounts, but keep the voter accounts)
 	//    This ensures voters no longer see stale elections on their dashboard after a reset.
 	if voterCollection != nil {
 		res, err := voterCollection.UpdateMany(ctx, bson.M{}, bson.M{

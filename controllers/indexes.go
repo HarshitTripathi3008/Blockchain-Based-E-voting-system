@@ -104,6 +104,27 @@ func EnsureIndexes(client *mongo.Client, dbName string) error {
 				Options: options.Index().SetUnique(true).SetName("students_email_unique"),
 			},
 		},
+		{
+			collection: "email_jobs",
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "status", Value: 1}, {Key: "createdAt", Value: 1}},
+				Options: options.Index().SetName("email_jobs_status_createdAt"),
+			},
+		},
+		{
+			collection: "vote_jobs",
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "status", Value: 1}, {Key: "createdAt", Value: 1}},
+				Options: options.Index().SetName("vote_jobs_status_createdAt"),
+			},
+		},
+		{
+			collection: "vote_jobs",
+			model: mongo.IndexModel{
+				Keys:    bson.D{{Key: "electionAddress", Value: 1}, {Key: "voterEmail", Value: 1}},
+				Options: options.Index().SetName("vote_jobs_election_voter"),
+			},
+		},
 	}
 
 	created := 0

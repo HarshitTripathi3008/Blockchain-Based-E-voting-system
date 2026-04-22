@@ -154,6 +154,7 @@ func main() {
 	controllers.InitAuditCollection(client, dbName)
 	controllers.InitMetadataCollection(client, dbName)
 	controllers.InitStudentCollection(client, dbName)
+	controllers.InitAsyncJobCollections(client, dbName)
 	fmt.Println("[OK] Initialized database collections")
 
 	// P0: Ensure all required indexes exist (idempotent — safe to run every startup).

@@ -63,3 +63,6 @@ Thumbs.db
 *.tmp
 *.temp
 components/
+.gocache/
+.gopls/
+go.sum

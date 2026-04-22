@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -96,15 +97,6 @@ func RegisterCandidate(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(Response{Status: "error", Message: "Failed to connect to Ethereum node: " + err.Error()})
 		return
 	}
-	defer client.Close()
-
-	auth, err := getAuth()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(Response{Status: "error", Message: "Failed to create transaction signer: " + err.Error()})
-		return
-	}
-	auth.Nonce = getNextNonce(client, auth.From)
 
 	contractAddr := common.HexToAddress(req.ElectionAddress)
 	contract, err := bindings.NewElection(contractAddr, client)
@@ -119,7 +111,15 @@ func RegisterCandidate(w http.ResponseWriter, r *http.Request) {
 		imgHash = ""
 	}
 
-	tx, err := contract.AddCandidate(auth, req.Name, req.Description, imgHash, req.Email)
+	tx, err := submitL2Tx(
+		client,
+		func() (*bind.TransactOpts, error) {
+			return getAuth(client)
+		},
+		func(auth *bind.TransactOpts) (*types.Transaction, error) {
+			return contract.AddCandidate(auth, req.Name, req.Description, imgHash, req.Email)
+		},
+	)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(Response{Status: "error", Message: "Failed to register candidate on blockchain: " + err.Error()})
