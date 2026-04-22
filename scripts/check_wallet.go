@@ -28,6 +28,9 @@ func main() {
 		log.Fatalf("Failed to decode private key: %v", err)
 	}
 
+	id, _ := client.ChainID(context.Background())
+	fmt.Printf("Chain ID: %v\n", id)
+
 	fromAddress := crypto.PubkeyToAddress(privateKey.PublicKey)
 	balance, err := client.BalanceAt(context.Background(), fromAddress, nil)
 	if err != nil {
@@ -39,7 +42,7 @@ func main() {
 	ethValue := new(big.Float).Quo(fbalance, big.NewFloat(1000000000000000000))
 
 	fmt.Printf("Admin Address: %s\n", fromAddress.Hex())
-	fmt.Printf("Balance: %s ETH\n", ethValue.Text('f', 6))
+	fmt.Printf("Balance: %s\n", ethValue.Text('f', 6))
 
 	nonce, _ := client.PendingNonceAt(context.Background(), fromAddress)
 	fmt.Printf("Pending Nonce: %d\n", nonce)
