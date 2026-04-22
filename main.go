@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"context"
@@ -155,6 +155,11 @@ func main() {
 	controllers.InitMetadataCollection(client, dbName)
 	controllers.InitStudentCollection(client, dbName)
 	fmt.Println("[OK] Initialized database collections")
+
+	// P0: Ensure all required indexes exist before serving traffic.
+	if err := controllers.EnsureIndexes(client, dbName); err != nil {
+		log.Fatalf("[ERROR] MongoDB index setup failed: %v", err)
+	}
 
 	// -----------------------------------------------------
 	// 4) START SERVER

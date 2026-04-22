@@ -20,14 +20,7 @@ var candidateCollection *mongo.Collection
 
 func InitCandidateCollection(client *mongo.Client, dbName string) {
 	candidateCollection = client.Database(dbName).Collection("candidates")
-
-	// Create fast lookup index for election lists
-	indexModel := mongo.IndexModel{Keys: bson.D{{Key: "electionAddress", Value: 1}, {Key: "email", Value: 1}}}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_, _ = candidateCollection.Indexes().CreateOne(ctx, indexModel)
-
-	fmt.Println("[OK] Initialized candidates collection with indexes")
+	fmt.Println("[OK] Initialized candidates collection")
 }
 
 type Response struct {
