@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -333,9 +333,10 @@
                             <span class="status-badge ${statusClass}">Status: ${reg.status}</span>
                         </div>
                         <div>
-                             ${reg.status === 'Verified' && (details.status !== 'ENDED') ?
+                             ${reg.status === 'Voted' ? '<span style="color:#00b894; font-weight:600;">✔ Vote Cast</span>' :
+                             (reg.status === 'Verified' && (details.status !== 'ENDED') ?
                                 `<button onclick="goToVote('${reg.election_address}')" class="btn-action">Proceed to Vote &rarr;</button>` :
-                                (details.status === 'ENDED' ? '<span style="color:var(--error-color);">Ended</span>' : '<span style="color:var(--text-muted); font-size:0.9rem;">Wait for Approval</span>')
+                                (details.status === 'ENDED' ? '<span style="color:var(--error-color);">Ended</span>' : '<span style="color:var(--text-muted); font-size:0.9rem;">Wait for Approval</span>'))
                             }
                         </div>
                     `;
