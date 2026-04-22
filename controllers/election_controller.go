@@ -645,7 +645,26 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 		}
 	*/
 
-	// 2. INSTANT DB CHECK: Check if a vote is currently in our processing queue
+	// 2. INSTANT DB CHECK: Check if voter already has "Voted" status in registrations
+	if voterCollection != nil {
+		var v Voter
+		addrRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(addrNorm) + "$", "$options": "i"}
+		emailRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(req.VoterEmail) + "$", "$options": "i"}
+		
+		err := voterCollection.FindOne(context.Background(), bson.M{
+			"email": emailRegex,
+			"registrations": bson.M{"$elemMatch": bson.M{
+				"election_address": addrRegex,
+				"status": bson.M{"$regex": "^voted$", "$options": "i"},
+			}},
+		}).Decode(&v)
+		if err == nil {
+			respondError(w, http.StatusBadRequest, "Double voting detected: You have already cast your vote for this election.")
+			return
+		}
+	}
+
+	// 3. JOB CHECK: Check if a vote is currently in our processing queue
 	existingJob, _ := getVoteJobByVoter(addrNorm, req.VoterEmail)
 	if existingJob != nil && existingJob.Status != "failed" {
 		msg := "You have already voted in this election."
@@ -654,6 +673,20 @@ func VoteCandidate(w http.ResponseWriter, r *http.Request) {
 		}
 		respondError(w, http.StatusBadRequest, msg)
 		return
+	}
+
+	// IMMEDIATE LOCK: Mark as "Voted" in DB before queuing
+	if voterCollection != nil {
+		vCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		
+		addrRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(addrNorm) + "$", "$options": "i"}
+		emailRegex := bson.M{"$regex": "^" + regexp.QuoteMeta(req.VoterEmail) + "$", "$options": "i"}
+
+		_, _ = voterCollection.UpdateOne(vCtx,
+			bson.M{"email": emailRegex, "registrations.election_address": addrRegex},
+			bson.M{"$set": bson.M{"registrations.$.status": "Voted"}},
+		)
 	}
 
 	job, err := enqueueVoteJob(addrNorm, req.CandidateID, req.VoterEmail)
