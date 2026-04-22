@@ -418,6 +418,17 @@ func trackVoteMining(id primitive.ObjectID, electionAddress, voterEmail string, 
 		update["$set"].(bson.M)["status"] = "mined"
 		update["$set"].(bson.M)["minedAt"] = now
 		update["$set"].(bson.M)["lastError"] = ""
+
+		// PERMANENT FIX: Update the voter's registration status to "Voted" in MongoDB
+		if voterCollection != nil {
+			vCtx, vCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer vCancel()
+			_, _ = voterCollection.UpdateOne(vCtx,
+				bson.M{"email": voterEmail, "registrations.election_address": electionAddress},
+				bson.M{"$set": bson.M{"registrations.$.status": "Voted"}},
+			)
+		}
+
 		invalidateCachePrefix(cacheKey("election", strings.ToLower(electionAddress)))
 		go LogAction(electionAddress, "VOTE_CAST", voterEmail, "Voted successfully (mined)")
 	}

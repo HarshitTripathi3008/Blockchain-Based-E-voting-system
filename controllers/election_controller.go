@@ -69,6 +69,61 @@ func respondError(w http.ResponseWriter, status int, message string) {
 	respondJSON(w, status, BlockchainResponse{Status: "error", Message: message})
 }
 
+func GetVoterStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSONHeader(w)
+	address := r.URL.Query().Get("address")
+	email := r.URL.Query().Get("email")
+
+	if address == "" || email == "" {
+		respondError(w, http.StatusBadRequest, "Missing address or email")
+		return
+	}
+
+	// 1. Check job queue first (most recent)
+	job, _ := getVoteJobByVoter(address, email)
+	if job != nil {
+		respondJSON(w, http.StatusOK, BlockchainResponse{
+			Status:  "success",
+			Message: "Voter status found in job queue",
+			Data: map[string]interface{}{
+				"hasVoted": true,
+				"status":   job.Status,
+				"txHash":   job.TxHash,
+			},
+		})
+		return
+	}
+
+	// 2. Check Voter registration status in DB (permanent)
+	var voter Voter
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := voterCollection.FindOne(ctx, bson.M{"email": email, "registrations.election_address": address}).Decode(&voter)
+	if err == nil {
+		for _, reg := range voter.Registrations {
+			if strings.EqualFold(reg.ElectionAddress, address) && reg.Status == "Voted" {
+				respondJSON(w, http.StatusOK, BlockchainResponse{
+					Status:  "success",
+					Message: "Voter has already voted",
+					Data: map[string]interface{}{
+						"hasVoted": true,
+						"status":   "mined",
+					},
+				})
+				return
+			}
+		}
+	}
+
+	respondJSON(w, http.StatusOK, BlockchainResponse{
+		Status:  "success",
+		Message: "Voter has not voted yet",
+		Data: map[string]interface{}{
+			"hasVoted": false,
+		},
+	})
+}
+
 // getClient connects to L2_NODE_URL (with timeout)
 func getClient() (*ethclient.Client, error) {
 	l2ClientMu.Lock()

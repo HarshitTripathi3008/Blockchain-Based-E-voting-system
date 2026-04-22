@@ -66,6 +66,7 @@ func SetupRoutes() *mux.Router {
 	api.HandleFunc("/voters/send-otp", controllers.SendOTP).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters/verify-otp-register", controllers.VerifyOTPAndRegister).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters/me/elections", controllers.GetVoterElections).Methods(http.MethodGet, http.MethodOptions) // NEW
+	api.HandleFunc("/voters/me/status", controllers.GetVoterStatus).Methods(http.MethodGet, http.MethodOptions)       // NEW: Check if voted
 	api.HandleFunc("/voters/forgot-password", controllers.ForgotPassword).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voter/authenticate", controllers.AuthenticateVoter).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters", controllers.GetAllVoters).Methods(http.MethodGet, http.MethodPost, http.MethodOptions)

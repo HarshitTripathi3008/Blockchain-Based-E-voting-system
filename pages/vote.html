@@ -329,7 +329,19 @@
           document.getElementById('candidatesCount').textContent = data?.data?.candidates_count || '-';
         }
 
-        // Removed heavy array fetches that caused Browser/Server OOM crashes under Extreme Load
+        // 3. CHECK IF VOTER HAS ALREADY VOTED (Pre-emptive UI check)
+        const statusResp = await fetch(`/api/voters/me/status?address=${encodeURIComponent(address)}&email=${encodeURIComponent(voter)}`);
+        if (statusResp.ok) {
+          const sData = await statusResp.json();
+          if (sData?.data?.hasVoted) {
+            const btn = document.getElementById('castVoteBtn');
+            btn.disabled = true;
+            btn.innerHTML = 'Vote Cast &check;';
+            btn.style.background = 'var(--text-muted)';
+            btn.style.cursor = 'not-allowed';
+            UI.toast('You have already cast your vote for this election.', 'info');
+          }
+        }
       } catch (err) {
         console.error(err);
       }
