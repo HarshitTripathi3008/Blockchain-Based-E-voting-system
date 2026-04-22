@@ -292,6 +292,12 @@ func submitL2Tx(
 	if err == nil {
 		return tx, nil
 	}
+
+	// PERMANENT FIX: If ANY error occurred (Nonce or Revert), we MUST resync the nonce.
+	// Otherwise, we skip a nonce (since getNextNonce already incremented it) and everything STOPS.
+	log.Printf("[RECOVERY] Tx failed: %v. Resyncing nonce to prevent deadlock.", err)
+	_ = resyncNonce(client, auth.From)
+
 	if !isNonceError(err) {
 		return nil, err
 	}
