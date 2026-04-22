@@ -277,13 +277,19 @@ func loadManifestoMap(ctx context.Context, electionAddress string) map[string]st
 // Global Nonce Manager for High Concurrency
 var (
 	nonceMutex sync.Mutex
-	lastNonce  uint64
-	nonceInit  bool
+	nonces     = make(map[uint64]uint64)
+	nonceInits = make(map[uint64]bool)
 )
 
 func resyncNonce(client *ethclient.Client, address common.Address) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	chainID, err := client.ChainID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get chain ID for resync: %v", err)
+	}
+	cid := chainID.Uint64()
 
 	pendingNonce, err := client.PendingNonceAt(ctx, address)
 	if err != nil {
@@ -292,24 +298,33 @@ func resyncNonce(client *ethclient.Client, address common.Address) error {
 
 	nonceMutex.Lock()
 	defer nonceMutex.Unlock()
-	lastNonce = pendingNonce
-	nonceInit = true
+	nonces[cid] = pendingNonce
+	nonceInits[cid] = true
+	log.Printf("[NONCE] Resynced nonce for chain %d: %d", cid, pendingNonce)
 	return nil
 }
 
-// getNextNonce guarantees a strictly increasing nonce for the admin wallet, even during extreme concurrency.
+// getNextNonce guarantees a strictly increasing nonce per chain for the admin wallet.
 func getNextNonce(client *ethclient.Client, address common.Address) (*big.Int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	chainID, err := client.ChainID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chain ID: %v", err)
+	}
+	cid := chainID.Uint64()
+
 	nonceMutex.Lock()
-	if !nonceInit {
+	if !nonceInits[cid] {
 		nonceMutex.Unlock()
 		if err := resyncNonce(client, address); err != nil {
-			return nil, fmt.Errorf("initialize nonce for %s: %w", address.Hex(), err)
+			return nil, fmt.Errorf("initialize nonce for %s on chain %d: %w", address.Hex(), cid, err)
 		}
 		nonceMutex.Lock()
 	}
 
-	next := lastNonce
-	lastNonce++
+	next := nonces[cid]
+	nonces[cid]++
 	nonceMutex.Unlock()
 
 	return new(big.Int).SetUint64(next), nil
@@ -327,7 +342,7 @@ func isNonceError(err error) bool {
 		strings.Contains(msg, "already known")
 }
 
-func submitL2Tx(
+func submitChainTx(
 	client *ethclient.Client,
 	makeAuth func() (*bind.TransactOpts, error),
 	submit func(*bind.TransactOpts) (*types.Transaction, error),
@@ -462,7 +477,7 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Submit CreateElection tx
-	tx, err := submitL2Tx(
+	tx, err := submitChainTx(
 		client,
 		func() (*bind.TransactOpts, error) {
 			return getAuth(client)

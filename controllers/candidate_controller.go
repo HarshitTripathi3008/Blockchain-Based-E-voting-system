@@ -111,7 +111,7 @@ func RegisterCandidate(w http.ResponseWriter, r *http.Request) {
 		imgHash = ""
 	}
 
-	tx, err := submitL2Tx(
+	tx, err := submitChainTx(
 		client,
 		func() (*bind.TransactOpts, error) {
 			return getAuth(client)

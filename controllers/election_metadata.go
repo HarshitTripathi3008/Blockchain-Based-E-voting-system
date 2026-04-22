@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"MAJOR-PROJECT/bindings"
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -350,25 +351,19 @@ func EndElection(w http.ResponseWriter, r *http.Request) {
 
 		l1ChainIDVal, _ := new(big.Int).SetString(os.Getenv("L1_CHAIN_ID"), 10)
 		if l1ChainIDVal == nil || l1ChainIDVal.Uint64() == 0 {
-			l1ChainIDVal = big.NewInt(11155111)
+			l1ChainIDVal = big.NewInt(11155111) // Sepolia Default
 		}
 
-		auth, err := bind.NewKeyedTransactorWithChainID(privKey, l1ChainIDVal)
-		if err != nil {
-			log.Printf("[ANCHOR ERROR] Failed to create L1 transactor: %v", err)
-			return
-		}
-
-		// Fetch L1 Nonce specifically
-		nonce, err := l1Client.PendingNonceAt(context.Background(), auth.From)
-		if err != nil {
-			log.Printf("[ANCHOR ERROR] Failed to get L1 nonce: %v", err)
-			return
-		}
-		auth.Nonce = big.NewInt(int64(nonce))
-
-		// 5. Submit to L1
-		tx, err := l1Archive.ArchiveResult(auth, common.HexToAddress(electionAddress), title, winnerName, winningVotes, numVoters)
+		// 5. Submit to L1 using the unified multi-chain nonce manager
+		tx, err := submitChainTx(
+			l1Client,
+			func() (*bind.TransactOpts, error) {
+				return bind.NewKeyedTransactorWithChainID(privKey, l1ChainIDVal)
+			},
+			func(auth *bind.TransactOpts) (*types.Transaction, error) {
+				return l1Archive.ArchiveResult(auth, common.HexToAddress(electionAddress), title, winnerName, winningVotes, numVoters)
+			},
+		)
 		if err != nil {
 			log.Printf("[ANCHOR ERROR] ArchiveResult tx failed: %v", err)
 			return

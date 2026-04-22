@@ -345,7 +345,7 @@ func processVoteJob(job *VoteJobDocument) error {
 
 	log.Printf("[INFO] Submitting vote to blockchain: Election=%s, Voter=%s, CandidateID=%d", job.ElectionAddress, job.VoterEmail, job.CandidateID)
 
-	tx, err := submitL2Tx(
+	tx, err := submitChainTx(
 		client,
 		func() (*bind.TransactOpts, error) {
 			return getAuth(client)
