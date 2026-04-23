@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -82,7 +82,7 @@
       async function createElection() {
         submitButton.disabled = true;
         submitButton.style.opacity = 0.6;
-        UI.showLoader('Deploying Election Contract...');
+        UI.showLoader('Submitting to Blockchain...');
 
         try {
           const name = electionName.value.trim();
@@ -90,9 +90,6 @@
           if (!name || !description) {
             throw new Error('Please fill in all fields.');
           }
-
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout for blockchain
 
           const payload = {
             company_email: companyEmail,
@@ -103,25 +100,57 @@
           const response = await fetch('/api/elections/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify(payload),
-            signal: controller.signal
+            body: JSON.stringify(payload)
           });
 
-          clearTimeout(timeout);
+          let result = await response.json();
+          if (!response.ok) throw new Error(result.message || 'Failed to submit transaction');
 
-          let result = null;
-          try { result = await response.json(); } catch (err) { throw new Error('Server returned invalid response'); }
+          const txHash = result.data?.txHash;
+          if (!txHash) throw new Error('No transaction hash returned from server');
 
-          if (response.ok && (result.success === true || result.status === 'success') && result.election_address) {
-            Cookies.set('address', result.election_address, { expires: 1, path: '/' });
-            UI.toast('Election created successfully!', 'success');
-            setTimeout(() => {
-              window.location.href = `company_dashboard.html?address=${encodeURIComponent(result.election_address)}`;
-            }, 1000);
-            return;
+          UI.showLoader('Deploying Contract... (15-30s)');
+          
+          // --- POLLING LOGIC ---
+          const maxAttempts = 40;
+          let deployedAddr = null;
+
+          for (let i = 0; i < maxAttempts; i++) {
+            await new Promise(r => setTimeout(r, 2000)); // wait 2s
+            
+            const checkResp = await fetch(`/api/elections/check-deployment/${txHash}`);
+            const checkResult = await checkResp.json();
+
+            if (checkResult.status === 'mined') {
+              // Now we need the address. Since the backend might still be updating the DB,
+              // we can try to fetch all elections and find the one that matches our name.
+              const allResp = await fetch('/api/elections');
+              const allData = await allResp.json();
+              const list = allData.data || [];
+              
+              // Find the newest election for this company
+              const mine = list.filter(e => e.election_name === name);
+              if (mine.length > 0) {
+                 deployedAddr = mine[0].election_address; // Use the one we found
+                 break;
+              }
+            } else if (checkResult.status === 'failed') {
+              throw new Error('Blockchain transaction failed. Please try again.');
+            }
           }
 
-          throw new Error(result.message || result.error || 'Failed to create election');
+          if (deployedAddr) {
+            Cookies.set('address', deployedAddr, { expires: 1, path: '/' });
+            UI.toast('Election created successfully!', 'success');
+            setTimeout(() => {
+              window.location.href = `company_dashboard.html?address=${encodeURIComponent(deployedAddr)}`;
+            }, 1000);
+          } else {
+            UI.toast('Deployment successful, but address discovery timed out. Please check your dashboard.', 'info');
+            setTimeout(() => {
+              window.location.href = 'company_dashboard.html';
+            }, 3000);
+          }
 
         } catch (error) {
           console.error('Election creation error:', error);

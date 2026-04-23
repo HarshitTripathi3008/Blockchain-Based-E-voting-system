@@ -1097,11 +1097,56 @@ func GetElectionInfo(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, payload)
 }
 
-// UploadImage (disabled)
-func UploadImage(w http.ResponseWriter, r *http.Request) {
+// CheckElectionDeployment polls for the status of an election creation transaction.
+func CheckElectionDeployment(w http.ResponseWriter, r *http.Request) {
 	writeJSONHeader(w)
-	respondJSON(w, http.StatusNotFound, BlockchainResponse{
-		Status:  "error",
-		Message: "image upload endpoint has been removed; image uploads are disabled",
+	vars := mux.Vars(r)
+	txHash := vars["txHash"]
+
+	if txHash == "" {
+		respondError(w, http.StatusBadRequest, "Missing txHash")
+		return
+	}
+
+	client, err := getClient()
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to connect to node")
+		return
+	}
+
+	hash := common.HexToHash(txHash)
+	receipt, err := client.TransactionReceipt(context.Background(), hash)
+
+	if err != nil {
+		// Not found or network error
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status": "pending",
+			"message": "Transaction or receipt not found yet",
+		})
+		return
+	}
+
+	if receipt.Status != 1 {
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status": "failed",
+			"message": "Deployment transaction reverted on the blockchain",
+		})
+		return
+	}
+
+	// Success! Now try to find the address.
+	// Since we don't have the email here easily (unless we pass it or store it),
+	// we search by factory's GetDeployedElections if we can identify the company.
+	// For now, we'll return "mined" and the frontend can either wait for the async 
+	// background task to update DB, or we can look up the Audit log.
+	
+	// Better: The background goroutine in CreateElection already updates the DB.
+	// We can check if the audit log or metadata exists for this transaction or newly created ones.
+	
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status": "mined",
+		"message": "Election deployed successfully! Redirecting...",
+		// We might not have the address here yet without the burner/email context,
+		// but the frontend will see 'mined' and can refresh its dashboard.
 	})
 }

@@ -42,6 +42,7 @@ func SetupRoutes() *mux.Router {
 	// ELECTION ROUTES
 	// ----------------------------
 	api.HandleFunc("/elections/create", controllers.CreateElection).Methods(http.MethodPost, http.MethodOptions)
+	api.HandleFunc("/elections/check-deployment/{txHash}", controllers.CheckElectionDeployment).Methods(http.MethodGet, http.MethodOptions) // NEW
 	api.HandleFunc("/elections/{address}/details", controllers.GetElectionInfo).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/candidates", controllers.GetElectionCandidates).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/vote", controllers.VoteCandidate).Methods(http.MethodPost, http.MethodOptions)
