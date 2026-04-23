@@ -556,12 +556,11 @@
     }
 
     async function confirmClearDatabase() {
-      if (!confirm("&#9888;&#65039; DANGER ZONE &#9888;&#65039;\n\nAre you sure you want to CLEAR THE ENTIRE DATABASE?\n\nThis will permanently delete:\n- All Candidates\n- All OTPs\n- All Audit Logs\n- All Election Metadata\n\nThis action cannot be undone.")) {
+      if (!confirm("⚠️ DANGER ZONE ⚠️\n\nAre you sure you want to RESET THE DATABASE?\n\nThis will permanently delete:\n- Election Data & Metadata\n- Candidates & Records\n- OTPs & Audit Logs\n- All Pending/Completed Jobs (Vote/Email)\n- All Voter Election Links\n\nThis action cannot be undone.")) {
         return;
       }
 
-      if (!confirm("Please confirm one last time.\n\nType 'YES' to proceed?")) { // double confirm implied
-        // simplified for UX, just double click ok
+      if (!confirm("FINAL WARNING!\n\nThis will wipe all election progress. Voter accounts will be preserved but their 'Voted' status and registrations will be cleared.\n\nProceed?")) {
         return;
       }
 
@@ -571,10 +570,10 @@
         const data = await UI.safeJson(resp);
 
         if (resp.ok) {
-          alert(`Database Cleared!\n\nDeleted:\nCandidates: ${data.data.candidates}\nOTPs: ${data.data.otps}\nLogs: ${data.data.audit_logs}`);
+          alert(`Database Reset Successful!\n\nSummary:\n- Candidates Deleted: ${data.data.candidates || 0}\n- OTPs Deleted: ${data.data.otps || 0}\n- Logs Deleted: ${data.data.audit_logs || 0}\n- Async Jobs Cleared: ${(data.data.email_jobs || 0) + (data.data.vote_jobs || 0)}`);
           window.location.reload();
         } else {
-          alert("Failed to clear: " + (data.message || "Unknown error"));
+          alert("Reset failed: " + (data.message || "Unknown error"));
         }
       } catch (e) {
         console.error(e);
