@@ -874,41 +874,41 @@ func sendEmail(to, subject, htmlBody string) error {
 
 // sendEmailWithAttachment sends an HTML email with an optional PDF attachment via Hostinger SMTP
 func sendEmailWithAttachment(to, subject, htmlBody, filename string, attachmentData []byte) error {
-	// // --- Hostinger Mail ---
-	// smtpHost := os.Getenv("SMTP_HOST")
-	// smtpPort := os.Getenv("SMTP_PORT")
-	// smtpUser := os.Getenv("SMTP_USER")
-	// smtpPass := os.Getenv("SMTP_PASS")
-	// senderEmail := os.Getenv("SENDER_EMAIL")
-	// senderName := os.Getenv("SENDER_NAME")
-	//
-	// if smtpHost == "" {
-	// 	smtpHost = "smtp.hostinger.com"
-	// }
-	// if smtpPort == "" {
-	// 	smtpPort = "587"
-	// }
-	// if smtpUser == "" || smtpPass == "" || senderEmail == "" {
-	// 	return fmt.Errorf("SMTP not configured: set SMTP_USER, SMTP_PASS, and SENDER_EMAIL")
-	// }
-	// if senderName == "" {
-	// 	senderName = "SecureVote"
-	// }
-
-	// --- SendGrid Mail ---
-	smtpHost := "smtp.sendgrid.net"
-	smtpPort := "587"
-	smtpUser := "apikey" // SendGrid uses "apikey" string as username
-	smtpPass := os.Getenv("SENDGRID_API_KEY")
-	senderEmail := "harshitpandey6051@gmail.com"
+	// 	// --- Hostinger Mail ---
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := os.Getenv("SMTP_PORT")
+	smtpUser := os.Getenv("SMTP_USER")
+	smtpPass := os.Getenv("SMTP_PASS")
+	senderEmail := os.Getenv("SENDER_EMAIL")
 	senderName := os.Getenv("SENDER_NAME")
 
+	if smtpHost == "" {
+		smtpHost = "smtp.hostinger.com"
+	}
+	if smtpPort == "" {
+		smtpPort = "587"
+	}
+	if smtpUser == "" || smtpPass == "" || senderEmail == "" {
+		return fmt.Errorf("SMTP not configured: set SMTP_USER, SMTP_PASS, and SENDER_EMAIL")
+	}
 	if senderName == "" {
 		senderName = "SecureVote"
 	}
-	if smtpPass == "" {
-		return fmt.Errorf("SendGrid API key not configured: set SENDGRID_API_KEY")
-	}
+
+	// --- SendGrid Mail (Commented Out) ---
+	// smtpHost := "smtp.sendgrid.net"
+	// smtpPort := "587"
+	// smtpUser := "apikey" // SendGrid uses "apikey" string as username
+	// smtpPass := os.Getenv("SENDGRID_API_KEY")
+	// senderEmail := "harshitpandey6051@gmail.com"
+	// senderName := os.Getenv("SENDER_NAME")
+	//
+	// if senderName == "" {
+	// 	senderName = "SecureVote"
+	// }
+	// if smtpPass == "" {
+	// 	return fmt.Errorf("SendGrid API key not configured: set SENDGRID_API_KEY")
+	// }
 
 	fromHeader := fmt.Sprintf("%s <%s>", senderName, senderEmail)
 
