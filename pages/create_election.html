@@ -121,21 +121,13 @@
             const checkResp = await fetch(`/api/elections/check-deployment/${txHash}`);
             const checkResult = await checkResp.json();
 
-            if (checkResult.status === 'mined') {
-              // Now we need the address. Since the backend might still be updating the DB,
-              // we can try to fetch all elections and find the one that matches our name.
-              const allResp = await fetch('/api/elections');
-              const allData = await allResp.json();
-              const list = allData.data || [];
-              
-              // Find the newest election for this company
-              const mine = list.filter(e => e.election_name === name);
-              if (mine.length > 0) {
-                 deployedAddr = mine[0].election_address; // Use the one we found
-                 break;
-              }
+            if (checkResult.status === 'mined' && checkResult.election_address) {
+              deployedAddr = checkResult.election_address;
+              break;
+            } else if (checkResult.status === 'processing') {
+              UI.showLoader('Finalizing Election Details...');
             } else if (checkResult.status === 'failed') {
-              throw new Error('Blockchain transaction failed. Please try again.');
+              throw new Error(checkResult.message || 'Blockchain transaction failed.');
             }
           }
 

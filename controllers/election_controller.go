@@ -31,6 +31,7 @@ var (
 	l2ClientMu            sync.Mutex
 	l2ClientShared        *ethclient.Client
 	verifiedContractAddrs sync.Map
+	deploymentResults     sync.Map // NEW: tracks txHash -> deployedAddress
 )
 
 // Candidate is the representation returned to the client
@@ -225,8 +226,8 @@ func getAuth(client *ethclient.Client) (*bind.TransactOpts, error) {
 		}
 	}
 
-	// GAS_LIMIT: Safe default for Sepolia (500k)
-	auth.GasLimit = 500000 
+	// GAS_LIMIT: Safe default for Sepolia (800k for normal tx, 3M for deployment)
+	auth.GasLimit = 3000000 
 	if gl := strings.TrimSpace(os.Getenv("GAS_LIMIT")); gl != "" {
 		gl = strings.Trim(gl, `"'`)
 		if glBig, ok := new(big.Int).SetString(gl, 10); ok && glBig.Sign() > 0 {
@@ -518,7 +519,11 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 	tx, err := submitChainTx(
 		client,
 		func() (*bind.TransactOpts, error) {
-			return getAuth(client)
+			auth, err := getAuth(client)
+			if err == nil {
+				auth.GasLimit = 5000000 // Higher limit for contract deployment
+			}
+			return auth, err
 		},
 		func(auth *bind.TransactOpts) (*types.Transaction, error) {
 			return factory.CreateElection(auth, req.CompanyEmail, req.ElectionName, req.ElectionDescription)
@@ -587,12 +592,17 @@ func CreateElection(w http.ResponseWriter, r *http.Request) {
 			if deployedAddr != (common.Address{}) {
 				addrHex := deployedAddr.Hex()
 				log.Printf("[ALCHEMY] CreateElection async success. Deployed at: %s", addrHex)
+				
+				// Store in map for polling
+				deploymentResults.Store(tx.Hash().Hex(), addrHex)
+				
 				// AUDIT LOG
 				go LogAction(addrHex, "ELECTION_CREATED", req.CompanyEmail, fmt.Sprintf("Created election '%s'", req.ElectionName))
 				// METADATA INIT
 				go EnsureMetadata(addrHex, name, desc)
 			} else {
 				log.Printf("CreateElection async: factory returned zero address for email %s after create tx", req.CompanyEmail)
+				deploymentResults.Store(tx.Hash().Hex(), "error:zero_address")
 			}
 		}
 	}()
@@ -1134,19 +1144,29 @@ func CheckElectionDeployment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Success! Now try to find the address.
-	// Since we don't have the email here easily (unless we pass it or store it),
-	// we search by factory's GetDeployedElections if we can identify the company.
-	// For now, we'll return "mined" and the frontend can either wait for the async 
-	// background task to update DB, or we can look up the Audit log.
-	
-	// Better: The background goroutine in CreateElection already updates the DB.
-	// We can check if the audit log or metadata exists for this transaction or newly created ones.
-	
+	// Check if our background goroutine has found the address yet
+	if val, ok := deploymentResults.Load(txHash); ok {
+		addr := val.(string)
+		if strings.HasPrefix(addr, "error:") {
+			respondJSON(w, http.StatusOK, map[string]interface{}{
+				"status": "failed",
+				"message": "Blockchain success, but address recovery failed: " + addr,
+			})
+		} else {
+			respondJSON(w, http.StatusOK, map[string]interface{}{
+				"status": "mined",
+				"message": "Election deployed successfully!",
+				"election_address": addr,
+			})
+		}
+		// Optional: delete from map after successful retrieval
+		// deploymentResults.Delete(txHash)
+		return
+	}
+
+	// If mined but address not in map yet, the background goroutine is still working
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"status": "mined",
-		"message": "Election deployed successfully! Redirecting...",
-		// We might not have the address here yet without the burner/email context,
-		// but the frontend will see 'mined' and can refresh its dashboard.
+		"status": "processing",
+		"message": "Transaction mined! Finalizing election details...",
 	})
 }

@@ -358,7 +358,11 @@ func EndElection(w http.ResponseWriter, r *http.Request) {
 		tx, err := submitChainTx(
 			l1Client,
 			func() (*bind.TransactOpts, error) {
-				return bind.NewKeyedTransactorWithChainID(privKey, l1ChainIDVal)
+				auth, err := bind.NewKeyedTransactorWithChainID(privKey, l1ChainIDVal)
+				if err == nil {
+					auth.GasLimit = 1000000 // High enough for L1 archiving
+				}
+				return auth, err
 			},
 			func(auth *bind.TransactOpts) (*types.Transaction, error) {
 				return l1Archive.ArchiveResult(auth, common.HexToAddress(electionAddress), title, winnerName, winningVotes, numVoters)
