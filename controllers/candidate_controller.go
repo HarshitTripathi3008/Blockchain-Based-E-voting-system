@@ -176,13 +176,7 @@ func RegisterCandidate(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
-
-	// Send email asynchronously using the shared email queue from voter.go
-	go func() {
-		subject := fmt.Sprintf("%s Registration", req.ElectionName)
-		body := fmt.Sprintf("Congratulations! You have been registered for the %s election.\n\nBest regards,\nVoting System Team", req.ElectionName)
-		_ = sendEmail(req.Email, subject, body)
-	}()
+	// Email notification removed to reduce mail usage as per user request
 }
 func updateCandidateStatus(txHash, status string) {
 	if candidateCollection == nil {
