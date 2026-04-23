@@ -519,7 +519,8 @@
       if (selectedCandidateId === null) return;
 
       submitBtn.disabled = true;
-      submitBtn.style.opacity = 0.7;
+      submitBtn.style.opacity = 0.5;
+      submitBtn.textContent = "Processing Vote...";
 
       try {
         const payload = {
@@ -550,7 +551,10 @@
             throw new Error('Vote queued, but no job id was returned');
           }
 
-          await pollVoteJob(jobId);
+          UI.toast("Vote Recorded! Finalizing...", "success");
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
           modal.classList.remove('active');
 
           setVotedState();
