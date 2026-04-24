@@ -33,32 +33,39 @@ func SetupRoutes() *mux.Router {
 	// ----------------------------
 	// COMPANY ROUTES
 	// ----------------------------
-	api.HandleFunc("/admin/clear-database", controllers.ClearDatabase).Methods(http.MethodPost, http.MethodOptions) // NEW
 	api.HandleFunc("/company/register", controllers.CreateCompany).Methods(http.MethodPost, http.MethodOptions)
+
+	// Secured Company Routes
+	securedCompany := api.PathPrefix("").Subrouter()
+	securedCompany.Use(middleware.CompanyAuthMiddleware)
+	securedCompany.HandleFunc("/admin/clear-database", controllers.ClearDatabase).Methods(http.MethodPost, http.MethodOptions) // NEW
 
 	api.HandleFunc("/company/authenticate", controllers.AuthenticateCompany).Methods(http.MethodPost, http.MethodOptions)
 
 	// ----------------------------
 	// ELECTION ROUTES
 	// ----------------------------
-	api.HandleFunc("/elections/create", controllers.CreateElection).Methods(http.MethodPost, http.MethodOptions)
+	securedCompany.HandleFunc("/elections/create", controllers.CreateElection).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/elections/check-deployment/{txHash}", controllers.CheckElectionDeployment).Methods(http.MethodGet, http.MethodOptions) // NEW
 	api.HandleFunc("/elections/{address}/details", controllers.GetElectionInfo).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/candidates", controllers.GetElectionCandidates).Methods(http.MethodGet, http.MethodOptions)
-	api.HandleFunc("/elections/{address}/vote", controllers.VoteCandidate).Methods(http.MethodPost, http.MethodOptions)
+
+	securedVoter := api.PathPrefix("").Subrouter()
+	securedVoter.Use(middleware.VoterAuthMiddleware)
+	securedVoter.HandleFunc("/elections/{address}/vote", controllers.VoteCandidate).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/vote-jobs/{jobId}", controllers.GetVoteJobStatus).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/voters", controllers.GetElectionVoters).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/dates", controllers.SetElectionDates).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/metadata", controllers.GetElectionMetadata).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/elections/{address}/analytics/geo", controllers.GetVoterAnalytics).Methods(http.MethodGet, http.MethodOptions)
-	api.HandleFunc("/elections/{address}/end", controllers.EndElection).Methods(http.MethodPost, http.MethodOptions)  // NEW
-	api.HandleFunc("/elections", controllers.GetAllElections).Methods(http.MethodGet, http.MethodOptions)             // NEW
-	api.HandleFunc("/elections/archives", controllers.GetArchivedResults).Methods(http.MethodGet, http.MethodOptions) // L1 Archives
+	securedCompany.HandleFunc("/elections/{address}/end", controllers.EndElection).Methods(http.MethodPost, http.MethodOptions) // NEW
+	api.HandleFunc("/elections", controllers.GetAllElections).Methods(http.MethodGet, http.MethodOptions)                       // NEW
+	api.HandleFunc("/elections/archives", controllers.GetArchivedResults).Methods(http.MethodGet, http.MethodOptions)           // L1 Archives
 
 	// ----------------------------
 	// CANDIDATE ROUTES
 	// ----------------------------
-	api.HandleFunc("/candidate/register", controllers.RegisterCandidate).Methods(http.MethodPost, http.MethodOptions)
+	securedCompany.HandleFunc("/candidate/register", controllers.RegisterCandidate).Methods(http.MethodPost, http.MethodOptions)
 
 	// ----------------------------
 	// VOTER ROUTES
@@ -66,27 +73,27 @@ func SetupRoutes() *mux.Router {
 	api.HandleFunc("/voters/register", controllers.RegisterVoter).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters/send-otp", controllers.SendOTP).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voters/verify-otp-register", controllers.VerifyOTPAndRegister).Methods(http.MethodPost, http.MethodOptions)
-	api.HandleFunc("/voters/me/elections", controllers.GetVoterElections).Methods(http.MethodGet, http.MethodOptions) // NEW
-	api.HandleFunc("/voters/me/status", controllers.GetVoterStatus).Methods(http.MethodGet, http.MethodOptions)       // NEW: Check if voted
+	securedVoter.HandleFunc("/voters/me/elections", controllers.GetVoterElections).Methods(http.MethodGet, http.MethodOptions) // NEW
+	securedVoter.HandleFunc("/voters/me/status", controllers.GetVoterStatus).Methods(http.MethodGet, http.MethodOptions)       // NEW: Check if voted
 	api.HandleFunc("/voters/forgot-password", controllers.ForgotPassword).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/voter/authenticate", controllers.AuthenticateVoter).Methods(http.MethodPost, http.MethodOptions)
-	api.HandleFunc("/voters", controllers.GetAllVoters).Methods(http.MethodGet, http.MethodPost, http.MethodOptions)
-	api.HandleFunc("/voters/{voterId}/card", controllers.GenerateVoterID).Methods(http.MethodGet, http.MethodOptions)
-	api.HandleFunc("/voters/{voterId}/card/email", controllers.EmailVoterID).Methods(http.MethodPost, http.MethodOptions)
-	api.HandleFunc("/voters/{voterId}", controllers.UpdateVoter).Methods(http.MethodPut, http.MethodOptions)
-	api.HandleFunc("/voters/{voterId}", controllers.DeleteVoter).Methods(http.MethodDelete, http.MethodOptions)
-	api.HandleFunc("/voters/{voterId}/approve", controllers.ApproveVoter).Methods(http.MethodPost, http.MethodOptions)                              // NEW
-	api.HandleFunc("/voters/{voterId}/reset-password", controllers.AdminResetVoterPassword).Methods(http.MethodPost, http.MethodOptions)            // ADMIN RESET
-	api.HandleFunc("/elections/{address}/voters/add", controllers.AddVotersToElection).Methods(http.MethodPost, http.MethodOptions)                 // NEW BULK IMPORT
-	api.HandleFunc("/elections/{address}/voters/reset-passwords", controllers.BulkResetVoterPasswords).Methods(http.MethodPost, http.MethodOptions) // BULK SEND PASSWORDS
-	api.HandleFunc("/voter/resultMail", controllers.ResultMail).Methods(http.MethodPost, http.MethodOptions)
+	securedCompany.HandleFunc("/voters", controllers.GetAllVoters).Methods(http.MethodGet, http.MethodPost, http.MethodOptions)
+	securedCompany.HandleFunc("/voters/{voterId}/card", controllers.GenerateVoterID).Methods(http.MethodGet, http.MethodOptions)
+	securedCompany.HandleFunc("/voters/{voterId}/card/email", controllers.EmailVoterID).Methods(http.MethodPost, http.MethodOptions)
+	securedCompany.HandleFunc("/voters/{voterId}", controllers.UpdateVoter).Methods(http.MethodPut, http.MethodOptions)
+	securedCompany.HandleFunc("/voters/{voterId}", controllers.DeleteVoter).Methods(http.MethodDelete, http.MethodOptions)
+	securedCompany.HandleFunc("/voters/{voterId}/approve", controllers.ApproveVoter).Methods(http.MethodPost, http.MethodOptions)                              // NEW
+	securedCompany.HandleFunc("/voters/{voterId}/reset-password", controllers.AdminResetVoterPassword).Methods(http.MethodPost, http.MethodOptions)            // ADMIN RESET
+	securedCompany.HandleFunc("/elections/{address}/voters/add", controllers.AddVotersToElection).Methods(http.MethodPost, http.MethodOptions)                 // NEW BULK IMPORT
+	securedCompany.HandleFunc("/elections/{address}/voters/reset-passwords", controllers.BulkResetVoterPasswords).Methods(http.MethodPost, http.MethodOptions) // BULK SEND PASSWORDS
+	securedCompany.HandleFunc("/voter/resultMail", controllers.ResultMail).Methods(http.MethodPost, http.MethodOptions)
 	// ----------------------------
 	// UPLOAD ROUTES
 	// ----------------------------
 	// Unified hybrid upload route
 	api.HandleFunc("/upload/unified", controllers.UnifiedUploadHandler).Methods(http.MethodPost, http.MethodOptions)
-	api.HandleFunc("/upload/s3", controllers.UnifiedUploadHandler).Methods(http.MethodPost, http.MethodOptions)
-	api.HandleFunc("/upload/gdrive", controllers.UnifiedUploadHandler).Methods(http.MethodPost, http.MethodOptions)
+	securedCompany.HandleFunc("/upload/s3", controllers.UnifiedUploadHandler).Methods(http.MethodPost, http.MethodOptions)
+	securedCompany.HandleFunc("/upload/gdrive", controllers.UnifiedUploadHandler).Methods(http.MethodPost, http.MethodOptions)
 
 	// ----------------------------
 	// STATIC FILE SERVING

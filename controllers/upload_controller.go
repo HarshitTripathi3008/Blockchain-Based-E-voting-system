@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"path/filepath"
 
 	"MAJOR-PROJECT/util"
+
+	"github.com/google/uuid"
 )
 
 // Response returned to the frontend
@@ -56,7 +59,11 @@ func UnifiedUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Detect Content-Type from header (usually reliable from browser)
 	mimeType := header.Header.Get("Content-Type")
-	log.Printf("Processing upload: %s (Type: %s)", header.Filename, mimeType)
+
+	// SANITIZE: Generate a UUID-based filename instead of using user input (header.Filename)
+	ext := filepath.Ext(header.Filename)
+	secureFilename := uuid.New().String() + ext
+	log.Printf("Processing upload: original=%s, secure=%s, type=%s", header.Filename, secureFilename, mimeType)
 
 	var url string
 	var uploadErr error
@@ -70,11 +77,11 @@ func UnifiedUploadHandler(w http.ResponseWriter, r *http.Request) {
 	if isMedia {
 		// Delegate to S3
 		log.Println("Delegating to AWS S3...")
-		url, uploadErr = util.UploadToS3(file, header.Filename)
+		url, uploadErr = util.UploadToS3(file, secureFilename)
 	} else {
 		// Delegate to Google Drive
 		log.Println("Delegating to Google Drive...")
-		url, uploadErr = util.UploadToGDrive(file, header.Filename)
+		url, uploadErr = util.UploadToGDrive(file, secureFilename)
 	}
 
 	if uploadErr != nil {

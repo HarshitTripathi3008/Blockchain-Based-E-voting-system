@@ -4,12 +4,14 @@ import (
 	"MAJOR-PROJECT/bindings"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/golang-jwt/jwt/v5"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -175,6 +177,32 @@ func AuthenticateCompany(w http.ResponseWriter, r *http.Request) {
 				// ignore errors - just return login without election address
 			}
 		}
+	}
+
+	// === JWT GENERATION ===
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "securevote-fallback-secret-key-123"
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":   companyInfo.ID.Hex(),
+		"email": companyInfo.Email,
+		"role":  "company",
+		"exp":   time.Now().Add(24 * time.Hour).Unix(),
+	})
+	tokenString, err := token.SignedString([]byte(secret))
+	if err == nil {
+		http.SetCookie(w, &http.Cookie{
+			Name:     "company_token",
+			Value:    tokenString,
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   os.Getenv("ENVIRONMENT") == "production",
+			SameSite: http.SameSiteLaxMode,
+			Expires:  time.Now().Add(24 * time.Hour),
+		})
+	} else {
+		log.Printf("AuthenticateCompany: failed to generate JWT: %v", err)
 	}
 
 	data := map[string]interface{}{"id": companyInfo.ID.Hex(), "email": companyInfo.Email}

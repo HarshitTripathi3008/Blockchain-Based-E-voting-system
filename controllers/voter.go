@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -579,6 +580,32 @@ func AuthenticateVoter(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(VoterResponse{Status: "error", Message: "Invalid email/password"})
 		return
+	}
+
+	// === JWT GENERATION ===
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "securevote-fallback-secret-key-123"
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":   voterInfo.ID.Hex(),
+		"email": voterInfo.Email,
+		"role":  "voter",
+		"exp":   time.Now().Add(24 * time.Hour).Unix(),
+	})
+	tokenString, err := token.SignedString([]byte(secret))
+	if err == nil {
+		http.SetCookie(w, &http.Cookie{
+			Name:     "voter_token",
+			Value:    tokenString,
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   os.Getenv("ENVIRONMENT") == "production",
+			SameSite: http.SameSiteLaxMode,
+			Expires:  time.Now().Add(24 * time.Hour),
+		})
+	} else {
+		log.Printf("AuthenticateVoter: failed to generate JWT: %v", err)
 	}
 
 	_ = json.NewEncoder(w).Encode(VoterResponse{
