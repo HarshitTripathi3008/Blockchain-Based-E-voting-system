@@ -304,7 +304,21 @@ func voteQueueWorker() {
 
 			if err := processVoteJob(job); err != nil {
 				log.Printf("[VOTE WORKER] process error for %s: %v", job.ID.Hex(), err)
+				
+				// OPTION 3: PROACTIVE BACKOFF
+				// If we hit a rate limit (429), sleep longer to let the RPC cool down
+				if strings.Contains(strings.ToLower(err.Error()), "429") || 
+				   strings.Contains(strings.ToLower(err.Error()), "too many requests") ||
+				   strings.Contains(strings.ToLower(err.Error()), "limit exceeded") {
+					log.Printf("[RATE LIMIT] RPC Throttling detected. Backing off for 5 seconds...")
+					time.Sleep(5 * time.Second)
+				}
 			}
+
+			// OPTION 1: POLITE DELAY
+			// Add a mandatory delay between transactions to stay under Free Tier limits
+			// 800ms is a safe compromise for ~1 vote/sec throughput
+			time.Sleep(800 * time.Millisecond)
 		}
 	}
 }
