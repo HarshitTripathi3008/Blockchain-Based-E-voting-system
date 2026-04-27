@@ -33,12 +33,12 @@ func SetupRoutes() *mux.Router {
 	// ----------------------------
 	// COMPANY ROUTES
 	// ----------------------------
-	api.HandleFunc("/company/register", controllers.CreateCompany).Methods(http.MethodPost, http.MethodOptions)
 
 	// Secured Company Routes
 	securedCompany := api.PathPrefix("").Subrouter()
 	securedCompany.Use(middleware.CompanyAuthMiddleware)
 	securedCompany.HandleFunc("/admin/clear-database", controllers.ClearDatabase).Methods(http.MethodPost, http.MethodOptions) // NEW
+	securedCompany.HandleFunc("/company/register", controllers.CreateCompany).Methods(http.MethodPost, http.MethodOptions)
 
 	api.HandleFunc("/company/authenticate", controllers.AuthenticateCompany).Methods(http.MethodPost, http.MethodOptions)
 

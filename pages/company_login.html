@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -42,12 +42,6 @@
       <button type="submit" id="companyLoginBtn" class="btn btn-primary" style="width: 100%;">Secure Login</button>
     </form>
 
-    <div style="margin-top: 1.5rem; font-size: 0.9rem;">
-      <button id="createAdminBtn"
-        style="background: none; border: none; color: var(--text-muted); cursor: pointer; text-decoration: underline;">
-
-      </button>
-    </div>
 
   </div>
 
@@ -114,33 +108,6 @@
       }
     });
 
-    document.getElementById('createAdminBtn').addEventListener('click', async () => {
-      const email = prompt("Enter new admin email:");
-      if (!email) return;
-      const password = prompt("Enter new admin password:");
-      if (!password) return;
-
-      UI.showLoader('Creating Admin...');
-      try {
-        const resp = await fetch('/api/company/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
-        const json = await resp.json().catch(() => null);
-
-        if (resp.ok && (json?.status === 'success' || json?.success === true)) {
-          UI.toast('Admin created! You can now login.', 'success');
-        } else {
-          UI.toast('Failed: ' + (json?.message || "Unknown error"), 'error');
-        }
-      } catch (err) {
-        console.error(err);
-        UI.toast('Request failed', 'error');
-      } finally {
-        UI.hideLoader();
-      }
-    });
 
 
   </script>
